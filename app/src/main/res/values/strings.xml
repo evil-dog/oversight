@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OverSight</string>
+    <string name="service_channel_name">OverSight Service</string>
+    <string name="service_channel_description">Keeps OverSight overlay running</string>
+    <string name="service_notification_title">OverSight is running</string>
+    <string name="service_notification_text">Overlay active on port %d</string>
+</resources>

@@ -1,0 +1,29 @@
+# Android build artifacts
+*.apk
+*.aab
+*.ap_
+*.dex
+build/
+.gradle/
+local.properties
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+
+# Signing keys
+*.keystore
+*.jks
+signing.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Sensitive data
+*.env
+secrets/
+
+# Logs
+*.log
