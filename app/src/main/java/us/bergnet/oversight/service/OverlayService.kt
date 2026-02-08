@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import us.bergnet.oversight.R
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.receiver.ScreenStateReceiver
+import us.bergnet.oversight.server.HttpServer
 import us.bergnet.oversight.util.NetworkUtils
 
 class OverlayService : Service() {
@@ -42,6 +43,7 @@ class OverlayService : Service() {
     }
 
     private var overlayWindowManager: OverlayWindowManager? = null
+    private var httpServer: HttpServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val screenStateReceiver = ScreenStateReceiver()
 
@@ -65,8 +67,12 @@ class OverlayService : Service() {
         overlayWindowManager = OverlayWindowManager(this)
         showOverlay()
 
+        // Start HTTP server
+        val port = OverlayStateStore.getRemotePort()
+        httpServer = HttpServer(port, this).also { it.start() }
+
         OverlayStateStore.setServiceRunning(true)
-        Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}")
+        Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -76,6 +82,9 @@ class OverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service onDestroy")
+
+        httpServer?.stop()
+        httpServer = null
 
         overlayWindowManager?.dismiss()
         overlayWindowManager = null
