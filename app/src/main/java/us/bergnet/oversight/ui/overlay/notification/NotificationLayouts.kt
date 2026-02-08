@@ -19,6 +19,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.ReceivedNotification
+import us.bergnet.oversight.ui.components.MdiIcon
 import us.bergnet.oversight.util.ColorParser
 import us.bergnet.oversight.util.IconResolver
 
@@ -44,12 +45,10 @@ fun DefaultNotificationLayout(
             val iconUrl = notification.getDisplayIcon()
             if (!iconUrl.isNullOrBlank()) {
                 if (IconResolver.isMdiIcon(iconUrl)) {
-                    // MDI icon placeholder - show as text
-                    Text(
-                        text = IconResolver.getIconName(iconUrl),
-                        color = Color.White,
-                        fontSize = (layout.iconSize * 0.4f).sp,
-                        modifier = Modifier.size(layout.iconSize.dp)
+                    MdiIcon(
+                        name = iconUrl,
+                        tint = Color.White,
+                        size = layout.iconSize.dp
                     )
                 } else {
                     AsyncImage(

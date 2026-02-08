@@ -16,9 +16,44 @@
 - Stub classes: OverSightApplication, SetupActivity, OverlayService, BootReceiver, ScreenStateReceiver
 - Build verified: `./gradlew assembleDebug` succeeds in Docker
 
-## Phase 2: Core Service + Overlay Window [PENDING]
-## Phase 3: REST API Server [PENDING]
-## Phase 4: Compose Overlay UI [PENDING]
+## Phase 2: Core Service + Overlay Window [COMPLETE]
+- OverSightApplication with ProcessLifecycleOwner
+- OverlayService: foreground service with notification channel, wake lock, screen state tracking
+- OverlayWindowManager: ComposeView in TYPE_APPLICATION_OVERLAY with custom LifecycleOwner
+- BootReceiver: auto-start on BOOT_COMPLETED/QUICKBOOT_POWERON/REBOOT
+- ScreenStateReceiver: SCREEN_ON/OFF tracking
+- SetupActivity: Leanback launcher entry, overlay permission request, battery optimization exemption
+- OverlayStateStore: central StateFlow-based reactive state management
+- Deployed and verified on Shield TV
+
+## Phase 3: REST API Server [COMPLETE]
+- Ktor/Netty embedded HTTP server on configurable port (default 5001)
+- All endpoints implemented and tested via curl:
+  - POST /notify - toast notifications with queue logic
+  - POST /notify_fixed - fixed notification upsert with partial update merge
+  - GET /fixed_notifications - list active fixed notifications
+  - POST /set/overlay, /set/notifications, /set/settings - config merge
+  - GET/POST /overlay_customization - clock appearance
+  - POST /screen_on - wake lock screen activation
+  - POST /restart_service - service restart
+  - GET/POST / and /{filter?} - notification layout management
+- JSON config: ignoreUnknownKeys, isLenient, encodeDefaults, coerceInputValues
+
+## Phase 4: Compose Overlay UI [COMPLETE]
+- OverlayContent: layered layout with background dimmer, clock+fixed row, toast notifications
+- Layout: clock at hot corner, fixed notifications stack horizontally from clock, toast stacks vertically
+- Per-notification corner override support (toast `corner` field)
+- ClockOverlay: follows system 12/24h preference, customizable font/color/shadow
+- BackgroundDimmer: 0-95% opacity full-screen overlay
+- NotificationPopup: expandIn/shrinkOut animation from corner, auto-dismiss with configurable duration
+- NotificationLayouts: Default (icon+source+title+message), Minimalist, Icon Only
+- FixedNotificationBadge: shape/size/color, animated enter (expandHorizontally) and exit (shrinkHorizontally)
+- MDI icon rendering via mikepenz Iconics library (IconicsDrawable on Compose Canvas)
+- Image support via Coil, video support via Media3/ExoPlayer
+- Fixed notification partial update API: only ID required for updates, fields merge with existing
+- SetupActivity: live permission status updates on resume, battery optimization status display
+- All verified on Shield TV with staggered notification tests
+
 ## Phase 5: Persistence [PENDING]
 ## Phase 6: Zeroconf Discovery [PENDING]
 ## Phase 7: Collapsible Fixed Notifications [PENDING]

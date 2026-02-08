@@ -22,7 +22,7 @@ data class InfoValues(
                 }
             }
             newOverlay.clockOverlayVisibility?.let { vis ->
-                if (vis in 0..95) {
+                if (vis in 0..100) {
                     val current = result.overlay ?: OverlayValues()
                     result = result.copy(overlay = current.copy(clockOverlayVisibility = vis))
                 }

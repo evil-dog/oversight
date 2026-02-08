@@ -74,6 +74,10 @@ dependencies {
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Icons (MDI via mikepenz Iconics)
+    implementation("com.mikepenz:iconics-core:5.4.0")
+    implementation("com.mikepenz:community-material-typeface:7.0.96.1-kotlin@aar")
+
     // Images (Coil)
     implementation("io.coil-kt:coil-compose:2.7.0")
 

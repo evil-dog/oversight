@@ -22,6 +22,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.enums.FixedNotificationShape
+import us.bergnet.oversight.ui.components.MdiIcon
 import us.bergnet.oversight.util.ColorParser
 import us.bergnet.oversight.util.IconResolver
 
@@ -65,11 +66,10 @@ fun FixedNotificationBadge(
         notification.icon?.let { iconName ->
             if (iconName.isNotBlank()) {
                 if (IconResolver.isMdiIcon(iconName)) {
-                    Text(
-                        text = IconResolver.getIconName(iconName),
-                        color = iconColor,
-                        fontSize = (size.fontSize * 0.8).sp,
-                        maxLines = 1
+                    MdiIcon(
+                        name = iconName,
+                        tint = iconColor,
+                        size = size.imageSize.dp
                     )
                 } else {
                     AsyncImage(

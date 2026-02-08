@@ -51,6 +51,30 @@ data class FixedNotification(
         return icon.isNullOrBlank() && text.isNullOrBlank()
     }
 
+    /**
+     * Merge incoming partial update into this notification.
+     * Null fields in [other] keep this notification's existing values.
+     * Non-null fields in [other] override.
+     * [visible] is always taken from [other] since it has a non-null default.
+     */
+    fun mergeWith(other: FixedNotification): FixedNotification {
+        return copy(
+            visible = other.visible,
+            icon = other.icon ?: icon,
+            text = other.text ?: text,
+            messageColor = other.messageColor ?: messageColor,
+            iconColor = other.iconColor ?: iconColor,
+            borderColor = other.borderColor ?: borderColor,
+            backgroundColor = other.backgroundColor ?: backgroundColor,
+            shape = other.shape ?: shape,
+            expiration = other.expiration ?: expiration,
+            expirationEpoch = other.expirationEpoch ?: expirationEpoch,
+            showDuration = other.showDuration ?: showDuration,
+            collapseDuration = other.collapseDuration ?: collapseDuration,
+            repeatExpand = other.repeatExpand ?: repeatExpand
+        )
+    }
+
     fun getExpirationInSeconds(): Long? {
         val epoch = expirationEpoch ?: return null
         return (epoch - System.currentTimeMillis()) / 1000

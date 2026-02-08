@@ -1,11 +1,13 @@
 package us.bergnet.oversight.ui.overlay
 
+import android.text.format.DateFormat
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,11 +23,13 @@ fun ClockOverlay(
     clockTextFormat: String?,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val systemDefault = if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a"
     var timeText by remember { mutableStateOf("") }
 
-    LaunchedEffect(clockTextFormat) {
+    LaunchedEffect(clockTextFormat, systemDefault) {
         while (true) {
-            val format = clockTextFormat ?: "HH:mm"
+            val format = clockTextFormat ?: systemDefault
             timeText = try {
                 SimpleDateFormat(format, Locale.getDefault()).format(Date())
             } catch (_: Exception) {

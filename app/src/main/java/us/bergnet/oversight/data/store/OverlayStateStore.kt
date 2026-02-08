@@ -105,7 +105,13 @@ object OverlayStateStore {
     fun upsertFixedNotification(notification: FixedNotification) {
         val current = _fixedNotifications.value.toMutableList()
         val index = current.indexOfFirst { it.id == notification.id }
-        val withTime = notification.withReceivedTime()
+        val merged = if (index >= 0) {
+            // Merge: existing values kept for null incoming fields
+            current[index].mergeWith(notification)
+        } else {
+            notification
+        }
+        val withTime = merged.withReceivedTime()
         if (index >= 0) {
             current[index] = withTime
         } else {
@@ -114,6 +120,9 @@ object OverlayStateStore {
         // Remove expired
         _fixedNotifications.value = current.filter { !it.isExpired() }
     }
+
+    fun getFixedNotification(id: String): FixedNotification? =
+        _fixedNotifications.value.firstOrNull { it.id == id }
 
     fun removeFixedNotification(id: String) {
         _fixedNotifications.value = _fixedNotifications.value.filter { it.id != id }

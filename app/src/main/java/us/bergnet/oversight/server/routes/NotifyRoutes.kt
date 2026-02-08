@@ -31,8 +31,9 @@ fun Routing.notifyRoutes() {
         try {
             val body = call.receiveText()
             val notification = HttpServer.json.decodeFromString<FixedNotification>(body)
-            if (notification.isEmpty()) {
-                call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Empty fixed notification"))
+            val existing = OverlayStateStore.getFixedNotification(notification.id)
+            if (existing == null && notification.isEmpty()) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse.error("New fixed notification requires icon or text"))
                 return@post
             }
             OverlayStateStore.upsertFixedNotification(notification)

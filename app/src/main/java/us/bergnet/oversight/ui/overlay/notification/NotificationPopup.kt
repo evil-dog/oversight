@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -23,7 +24,7 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.delay
 import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.ReceivedNotification
-import us.bergnet.oversight.data.store.OverlayStateStore
+import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.util.ColorParser
 
 @Composable
@@ -31,9 +32,10 @@ fun NotificationPopup(
     notification: ReceivedNotification?,
     layout: NotificationLayout,
     durationSeconds: Int,
+    corner: HotCorner = HotCorner.TOP_END,
     onDismiss: () -> Unit
 ) {
-    var visible by remember(notification?.id) { mutableStateOf(notification != null) }
+    var visible by remember(notification?.id) { mutableStateOf(false) }
 
     LaunchedEffect(notification?.id) {
         if (notification != null) {
@@ -41,19 +43,26 @@ fun NotificationPopup(
             val duration = notification.duration ?: durationSeconds
             delay(duration * 1000L)
             visible = false
-            delay(300L) // wait for exit animation
+            delay(500L) // wait for exit animation
             onDismiss()
         }
     }
 
+    val expandAlignment = when (corner) {
+        HotCorner.TOP_START -> Alignment.TopStart
+        HotCorner.TOP_END -> Alignment.TopEnd
+        HotCorner.BOTTOM_START -> Alignment.BottomStart
+        HotCorner.BOTTOM_END -> Alignment.BottomEnd
+    }
+
     AnimatedVisibility(
         visible = visible && notification != null,
-        enter = slideInHorizontally { it } + fadeIn(),
-        exit = slideOutHorizontally { it } + fadeOut()
+        enter = expandIn(expandFrom = expandAlignment, clip = false) + fadeIn(),
+        exit = shrinkOut(shrinkTowards = expandAlignment, clip = false) + fadeOut()
     ) {
         if (notification != null) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier.padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Image
