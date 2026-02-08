@@ -73,5 +73,12 @@
 - Auto re-registers when deviceName or port changes via `/set/settings`
 - Fresh RegistrationListener per registration to avoid NsdManager race conditions
 - Verified on Shield TV: discoverable via avahi-browse, re-registration on name change works
-## Phase 7: Collapsible Fixed Notifications [PENDING]
+## Phase 7: Collapsible Fixed Notifications [COMPLETE]
+- CollapsibleBadge composable with LaunchedEffect timer-based state machine
+- showDuration: seconds to show text before collapsing to icon-only
+- collapseDuration: seconds to stay collapsed before re-expanding
+- repeatExpand: whether to cycle expand/collapse continuously
+- animateContentSize() on badge Row for smooth width transitions
+- Edge cases: null showDuration = always expanded, empty text = ignore collapse params
+- Verified on Shield TV: cycling animation, non-collapsible badges unaffected, icon-only edge case correct
 ## Phase 8: Setup UI + Polish [PENDING]

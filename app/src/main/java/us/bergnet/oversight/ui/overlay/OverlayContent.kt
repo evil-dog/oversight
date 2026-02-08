@@ -7,6 +7,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -201,7 +202,7 @@ private fun ClockFixedRow(
                         enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
                         exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
                     ) {
-                        FixedNotificationBadge(notification = item.notification)
+                        CollapsibleBadge(notification = item.notification)
                     }
                 }
             }
@@ -213,7 +214,7 @@ private fun ClockFixedRow(
                         enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
                         exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
                     ) {
-                        FixedNotificationBadge(notification = item.notification)
+                        CollapsibleBadge(notification = item.notification)
                     }
                 }
             }
@@ -225,6 +226,53 @@ private fun ClockFixedRow(
             }
         }
     }
+}
+
+/**
+ * Wraps FixedNotificationBadge with collapse/expand timer logic.
+ *
+ * State machine:
+ * - EXPANDED: showing icon + text. After showDuration seconds -> COLLAPSED
+ * - COLLAPSED: icon only. If repeatExpand && collapseDuration -> after collapseDuration -> EXPANDED
+ * - If showDuration is null or text is empty: always expanded (no collapse behavior)
+ */
+@Composable
+private fun CollapsibleBadge(notification: FixedNotification) {
+    val hasText = !notification.text.isNullOrBlank()
+    val showDuration = notification.showDuration
+    val collapseDuration = notification.collapseDuration
+    val repeatExpand = notification.repeatExpand ?: false
+    val shouldCollapse = hasText && showDuration != null
+
+    var collapsed by remember(notification.id) { mutableStateOf(false) }
+
+    if (shouldCollapse) {
+        LaunchedEffect(notification.id, showDuration, collapseDuration, repeatExpand) {
+            // Start expanded
+            collapsed = false
+            while (true) {
+                // Show text for showDuration seconds
+                delay(showDuration!!.toLong() * 1000)
+                collapsed = true
+
+                if (repeatExpand && collapseDuration != null) {
+                    // Stay collapsed for collapseDuration seconds, then expand again
+                    delay(collapseDuration.toLong() * 1000)
+                    collapsed = false
+                } else {
+                    // Stay collapsed
+                    break
+                }
+            }
+        }
+    } else {
+        // Reset to expanded if collapse params removed
+        LaunchedEffect(notification.id, shouldCollapse) {
+            collapsed = false
+        }
+    }
+
+    FixedNotificationBadge(notification = notification, collapsed = collapsed)
 }
 
 @Composable

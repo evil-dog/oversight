@@ -1,5 +1,6 @@
 package us.bergnet.oversight.ui.overlay.notification
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -55,6 +56,7 @@ fun FixedNotificationBadge(
 
     Row(
         modifier = modifier
+            .animateContentSize()
             .clip(shape)
             .then(borderMod)
             .background(bgColor)
