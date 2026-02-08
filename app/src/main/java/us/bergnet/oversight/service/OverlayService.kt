@@ -20,6 +20,7 @@ import us.bergnet.oversight.R
 import us.bergnet.oversight.ui.overlay.OverlayContent
 import us.bergnet.oversight.data.repository.PersistenceManager
 import us.bergnet.oversight.data.store.OverlayStateStore
+import us.bergnet.oversight.discovery.ZeroconfAdvertiser
 import us.bergnet.oversight.receiver.ScreenStateReceiver
 import us.bergnet.oversight.server.HttpServer
 import us.bergnet.oversight.util.NetworkUtils
@@ -51,6 +52,7 @@ class OverlayService : Service() {
     private val screenStateReceiver = ScreenStateReceiver()
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var persistenceManager: PersistenceManager? = null
+    private var zeroconfAdvertiser: ZeroconfAdvertiser? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -81,6 +83,16 @@ class OverlayService : Service() {
                 val port = OverlayStateStore.getRemotePort()
                 httpServer = HttpServer(port, this@OverlayService).also { it.start() }
 
+                // Start mDNS advertisement after HTTP server is up
+                zeroconfAdvertiser = ZeroconfAdvertiser(this@OverlayService).also {
+                    it.register(
+                        deviceName = OverlayStateStore.getDeviceName(),
+                        port = port,
+                        deviceId = OverlayStateStore.deviceId.value
+                    )
+                    it.observeSettingsChanges(serviceScope)
+                }
+
                 OverlayStateStore.setServiceRunning(true)
                 Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
             }
@@ -97,6 +109,9 @@ class OverlayService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         Log.d(TAG, "Service onDestroy")
+
+        zeroconfAdvertiser?.unregister()
+        zeroconfAdvertiser = null
 
         httpServer?.stop()
         httpServer = null

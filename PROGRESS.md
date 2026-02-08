@@ -64,6 +64,14 @@
 - Generates and persists a UUID device ID
 - Wired into OverlayService: loadAll() in serviceScope, startAutoSave() after load
 - Verified on Shield TV: fixed notifications and overlay customization survive service restart
-## Phase 6: Zeroconf Discovery [PENDING]
+## Phase 6: Zeroconf Discovery [COMPLETE]
+- ZeroconfAdvertiser using Android NsdManager for mDNS advertisement
+- Service type: `_tvoverlay._tcp`
+- TXT records: deviceName, port, version, deviceId
+- Starts in OverlayService after HTTP server is up
+- Stops in OverlayService.onDestroy()
+- Auto re-registers when deviceName or port changes via `/set/settings`
+- Fresh RegistrationListener per registration to avoid NsdManager race conditions
+- Verified on Shield TV: discoverable via avahi-browse, re-registration on name change works
 ## Phase 7: Collapsible Fixed Notifications [PENDING]
 ## Phase 8: Setup UI + Polish [PENDING]
