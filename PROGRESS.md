@@ -54,7 +54,16 @@
 - SetupActivity: live permission status updates on resume, battery optimization status display
 - All verified on Shield TV with staggered notification tests
 
-## Phase 5: Persistence [PENDING]
+## Phase 5: Persistence [COMPLETE]
+- PersistenceManager using DataStore Preferences
+- Persists: InfoValues, OverlayCustomization, ClockTextFormat, FixedNotifications, NotificationLayoutList, DeviceId
+- JSON serialization for complex objects into string preferences
+- Auto-save via StateFlow.drop(1).debounce(500).collectLatest observers
+- Loads all state on service startup before starting overlay and HTTP server
+- Filters expired fixed notifications on load
+- Generates and persists a UUID device ID
+- Wired into OverlayService: loadAll() in serviceScope, startAutoSave() after load
+- Verified on Shield TV: fixed notifications and overlay customization survive service restart
 ## Phase 6: Zeroconf Discovery [PENDING]
 ## Phase 7: Collapsible Fixed Notifications [PENDING]
 ## Phase 8: Setup UI + Polish [PENDING]

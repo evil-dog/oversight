@@ -11,8 +11,14 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import us.bergnet.oversight.R
 import us.bergnet.oversight.ui.overlay.OverlayContent
+import us.bergnet.oversight.data.repository.PersistenceManager
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.receiver.ScreenStateReceiver
 import us.bergnet.oversight.server.HttpServer
@@ -43,6 +49,8 @@ class OverlayService : Service() {
     private var httpServer: HttpServer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val screenStateReceiver = ScreenStateReceiver()
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var persistenceManager: PersistenceManager? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -60,16 +68,26 @@ class OverlayService : Service() {
         }
         registerReceiver(screenStateReceiver, filter)
 
-        // Create overlay window
-        overlayWindowManager = OverlayWindowManager(this)
-        showOverlay()
+        // Load persisted state, then start overlay and server
+        persistenceManager = PersistenceManager(this)
+        serviceScope.launch {
+            persistenceManager?.loadAll()
 
-        // Start HTTP server
-        val port = OverlayStateStore.getRemotePort()
-        httpServer = HttpServer(port, this).also { it.start() }
+            // Start overlay and HTTP server on main thread after state is loaded
+            launch(Dispatchers.Main) {
+                overlayWindowManager = OverlayWindowManager(this@OverlayService)
+                showOverlay()
 
-        OverlayStateStore.setServiceRunning(true)
-        Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
+                val port = OverlayStateStore.getRemotePort()
+                httpServer = HttpServer(port, this@OverlayService).also { it.start() }
+
+                OverlayStateStore.setServiceRunning(true)
+                Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
+            }
+
+            // Start auto-saving state changes
+            persistenceManager?.startAutoSave(serviceScope)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -90,6 +108,7 @@ class OverlayService : Service() {
             unregisterReceiver(screenStateReceiver)
         } catch (_: Exception) {}
 
+        serviceScope.cancel()
         releaseWakeLock()
         OverlayStateStore.setServiceRunning(false)
     }
