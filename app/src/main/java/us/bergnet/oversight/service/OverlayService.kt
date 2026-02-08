@@ -11,11 +11,8 @@ import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
-import androidx.compose.material3.Text
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.graphics.Color
 import us.bergnet.oversight.R
+import us.bergnet.oversight.ui.overlay.OverlayContent
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.receiver.ScreenStateReceiver
 import us.bergnet.oversight.server.HttpServer
@@ -99,11 +96,7 @@ class OverlayService : Service() {
 
     private fun showOverlay() {
         overlayWindowManager?.show {
-            // Placeholder overlay - will be replaced in Phase 4
-            val isRunning by OverlayStateStore.isServiceRunning.collectAsState()
-            if (isRunning) {
-                Text(text = "", color = Color.Transparent)
-            }
+            OverlayContent()
         }
     }
 
