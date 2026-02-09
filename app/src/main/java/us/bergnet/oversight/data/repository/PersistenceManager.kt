@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -32,6 +33,7 @@ class PersistenceManager(private val context: Context) {
         private val KEY_FIXED_NOTIFICATIONS = stringPreferencesKey("fixed_notifications")
         private val KEY_LAYOUT_LIST = stringPreferencesKey("layout_list")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
+        private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
     }
 
     private val json = Json {
@@ -87,6 +89,26 @@ class PersistenceManager(private val context: Context) {
             Log.d(TAG, "All state loaded from DataStore")
         } catch (e: Exception) {
             Log.e(TAG, "Error loading persisted state", e)
+        }
+    }
+
+    suspend fun isOnboardingComplete(): Boolean {
+        return try {
+            val prefs = context.dataStore.data.first()
+            prefs[KEY_ONBOARDING_COMPLETE] ?: false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading onboarding state", e)
+            false
+        }
+    }
+
+    suspend fun setOnboardingComplete() {
+        try {
+            context.dataStore.edit { prefs ->
+                prefs[KEY_ONBOARDING_COMPLETE] = true
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving onboarding state", e)
         }
     }
 

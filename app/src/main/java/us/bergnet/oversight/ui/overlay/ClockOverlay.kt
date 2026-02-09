@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.LocalContext
@@ -21,6 +22,7 @@ import java.util.*
 fun ClockOverlay(
     customization: NonNullableOverlayCustomization,
     clockTextFormat: String?,
+    visibilityPercent: Int = 100,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -47,12 +49,16 @@ fun ClockOverlay(
         )
     } else null
 
+    val alphaValue = visibilityPercent.coerceIn(0, 100) / 100f
+
     Text(
         text = timeText,
         color = textColor,
         fontSize = customization.fontSize.sp,
         fontWeight = customization.fontWeight.toFontWeight(),
         style = TextStyle(shadow = shadow),
-        modifier = modifier.padding(8.dp)
+        modifier = modifier
+            .alpha(alphaValue)
+            .padding(8.dp)
     )
 }

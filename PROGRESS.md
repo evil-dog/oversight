@@ -81,4 +81,23 @@
 - animateContentSize() on badge Row for smooth width transitions
 - Edge cases: null showDuration = always expanded, empty text = ignore collapse params
 - Verified on Shield TV: cycling animation, non-collapsible badges unaffected, icon-only edge case correct
-## Phase 8: Setup UI + Polish [PENDING]
+## Phase 8: Setup UI + Polish [COMPLETE]
+- First-launch onboarding wizard: Welcome → Overlay Permission → Battery Optimization → Settings
+  - Auto-advances when permissions detected on resume
+  - Onboarding completion persisted in DataStore via PersistenceManager
+  - D-pad friendly with auto-focused primary buttons and visible Skip button styling
+- YouTube TV-style split panel settings UI
+  - Left panel (28%): scrollable TvLazyColumn menu with section headers
+  - Right panel (72%): detail view for selected setting (About, Toggle, Value, Service, Action)
+  - Two-panel D-pad focus model: Right/Enter to interact, Left/Back to return
+- Setting types:
+  - Toggle: stacked On/Off buttons with checkmark indicator
+  - Value: edit button → dialog (Selector slide-in, Slider with live preview, TextInput with keyboard)
+  - Service control: Start/Stop/Restart with conditional enable state
+  - Action: Clear Fixed Notifications button
+- Settings wired to OverlayStateStore: changes reflected in overlay in real-time
+- About page: service status, mDNS, IP, port, device name, device ID, permissions with grant buttons
+- Clock visibility now controls opacity (0-100% alpha) instead of binary on/off
+- Pixel shift: random -6 to +6 dp offset every 60s with animated transitions to prevent burn-in
+- Focus management: counter-based LaunchedEffect keys for reliable focus restoration, global Back/Left interceptor on right panel
+- SetupActivity loads persisted state via local PersistenceManager when service isn't running

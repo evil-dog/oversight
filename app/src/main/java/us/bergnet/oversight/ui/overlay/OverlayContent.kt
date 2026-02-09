@@ -2,12 +2,16 @@ package us.bergnet.oversight.ui.overlay
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -51,6 +55,27 @@ fun OverlayContent() {
         emptyList()
     }
 
+    // Pixel shift: small random offset every 60s to prevent burn-in
+    val pixelShift = infoValues.settings?.pixelShift ?: false
+    var shiftX by remember { mutableStateOf(0.dp) }
+    var shiftY by remember { mutableStateOf(0.dp) }
+
+    if (pixelShift) {
+        LaunchedEffect(Unit) {
+            while (true) {
+                shiftX = Random.nextInt(-6, 7).dp
+                shiftY = Random.nextInt(-6, 7).dp
+                delay(60_000L)
+            }
+        }
+    } else {
+        shiftX = 0.dp
+        shiftY = 0.dp
+    }
+
+    val animatedShiftX by animateDpAsState(shiftX, tween(2000), label = "shiftX")
+    val animatedShiftY by animateDpAsState(shiftY, tween(2000), label = "shiftY")
+
     OverlayTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             // Background dimmer (full screen)
@@ -60,7 +85,12 @@ fun OverlayContent() {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(8.dp),
+                    .padding(
+                        start = (8 + if (animatedShiftX > 0.dp) animatedShiftX.value else 0f).dp,
+                        end = (8 + if (animatedShiftX < 0.dp) -animatedShiftX.value else 0f).dp,
+                        top = (8 + if (animatedShiftY > 0.dp) animatedShiftY.value else 0f).dp,
+                        bottom = (8 + if (animatedShiftY < 0.dp) -animatedShiftY.value else 0f).dp
+                    ),
                 contentAlignment = hotCorner.alignment
             ) {
                 Column(horizontalAlignment = horizontalAlignment) {
@@ -192,7 +222,8 @@ private fun ClockFixedRow(
             if (showClock) {
                 ClockOverlay(
                     customization = overlayCustomization.toNonNullable(),
-                    clockTextFormat = clockTextFormat
+                    clockTextFormat = clockTextFormat,
+                    visibilityPercent = clockVisibility
                 )
             }
             renderItems.forEach { item ->
@@ -221,7 +252,8 @@ private fun ClockFixedRow(
             if (showClock) {
                 ClockOverlay(
                     customization = overlayCustomization.toNonNullable(),
-                    clockTextFormat = clockTextFormat
+                    clockTextFormat = clockTextFormat,
+                    visibilityPercent = clockVisibility
                 )
             }
         }

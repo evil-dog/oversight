@@ -7,57 +7,94 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import us.bergnet.oversight.data.repository.PersistenceManager
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.service.OverlayService
-import us.bergnet.oversight.util.NetworkUtils
 
 class SetupActivity : ComponentActivity() {
 
     private val hasOverlayPermission = mutableStateOf(false)
     private val hasBatteryExemption = mutableStateOf(false)
+    private val onboardingComplete = mutableStateOf<Boolean?>(null) // null = loading
+    private var persistenceManager: PersistenceManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         updatePermissionStates()
+        persistenceManager = PersistenceManager(this)
 
-        if (hasOverlayPermission.value) {
-            startOverlayService()
-        } else {
-            requestOverlayPermission()
+        lifecycleScope.launch {
+            // Load persisted state so settings are available even if service isn't running
+            if (!OverlayStateStore.isServiceRunning.value) {
+                persistenceManager?.loadAll()
+                persistenceManager?.startAutoSave(lifecycleScope)
+            }
+
+            val complete = persistenceManager?.isOnboardingComplete() ?: false
+            onboardingComplete.value = complete
+
+            if (complete && hasOverlayPermission.value) {
+                startOverlayService()
+            }
         }
 
-        requestBatteryOptimizationExemption()
-
         setContent {
-            SetupScreen()
+            val onboarded by onboardingComplete
+            val overlayGranted by hasOverlayPermission
+            val batteryGranted by hasBatteryExemption
+
+            when {
+                onboarded == null -> {
+                    // Loading - show nothing briefly
+                }
+                onboarded == false -> {
+                    OnboardingScreen(
+                        hasOverlayPermission = overlayGranted,
+                        hasBatteryExemption = batteryGranted,
+                        onRequestOverlayPermission = { requestOverlayPermission() },
+                        onRequestBatteryExemption = { requestBatteryOptimizationExemption() },
+                        onComplete = {
+                            lifecycleScope.launch {
+                                persistenceManager?.setOnboardingComplete()
+                            }
+                            onboardingComplete.value = true
+                            if (overlayGranted) {
+                                startOverlayService()
+                            }
+                        }
+                    )
+                }
+                else -> {
+                    SetupScreen(
+                        hasOverlayPermission = overlayGranted,
+                        hasBatteryExemption = batteryGranted,
+                        onRequestOverlayPermission = { requestOverlayPermission() },
+                        onRequestBatteryExemption = { requestBatteryOptimizationExemption() },
+                        onStartService = { startOverlayService() },
+                        onStopService = { stopOverlayService() },
+                        onRestartService = {
+                            stopOverlayService()
+                            window.decorView.postDelayed({ startOverlayService() }, 500)
+                        },
+                        onClearFixedNotifications = {
+                            OverlayStateStore.setFixedNotifications(emptyList())
+                        }
+                    )
+                }
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
         updatePermissionStates()
-        if (hasOverlayPermission.value) {
+        // If onboarding is done and we have permission, ensure service is started
+        if (onboardingComplete.value == true && hasOverlayPermission.value) {
             startOverlayService()
         }
     }
@@ -94,82 +131,7 @@ class SetupActivity : ComponentActivity() {
         OverlayService.start(this)
     }
 
-    @Composable
-    private fun SetupScreen() {
-        val isRunning by OverlayStateStore.isServiceRunning.collectAsState()
-        val ip = remember { NetworkUtils.getDeviceIpAddress() ?: "Unknown" }
-        val port = OverlayStateStore.getRemotePort()
-        val overlayGranted by hasOverlayPermission
-        val batteryGranted by hasBatteryExemption
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF1A1A2E)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "OverSight",
-                    color = Color(0xFF6C63FF),
-                    fontSize = 36.sp
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = if (isRunning) "Service: Running" else "Service: Stopped",
-                    color = if (isRunning) Color(0xFF4CAF50) else Color(0xFFFF5252),
-                    fontSize = 18.sp
-                )
-
-                Text(
-                    text = "IP: $ip",
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-
-                Text(
-                    text = "Port: $port",
-                    color = Color.White,
-                    fontSize = 16.sp
-                )
-
-                Text(
-                    text = "Overlay Permission: ${if (overlayGranted) "Granted" else "Required"}",
-                    color = if (overlayGranted) Color(0xFF4CAF50) else Color(0xFFFF5252),
-                    fontSize = 14.sp
-                )
-
-                Text(
-                    text = "Battery Optimization: ${if (batteryGranted) "Exempt" else "Not Exempt"}",
-                    color = if (batteryGranted) Color(0xFF4CAF50) else Color(0xFFFF9800),
-                    fontSize = 14.sp
-                )
-
-                if (!overlayGranted) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { requestOverlayPermission() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C63FF))
-                    ) {
-                        Text("Grant Overlay Permission")
-                    }
-                }
-
-                if (!isRunning && overlayGranted) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { startOverlayService() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6C63FF))
-                    ) {
-                        Text("Start Service")
-                    }
-                }
-            }
-        }
+    private fun stopOverlayService() {
+        OverlayService.stop(this)
     }
 }
