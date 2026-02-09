@@ -4,11 +4,30 @@ import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.put
 import us.bergnet.oversight.data.model.*
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.server.HttpServer
 
 fun Routing.settingsRoutes() {
+    get("/info") {
+        val info = OverlayStateStore.infoValues.value
+        val deviceId = OverlayStateStore.deviceId.value
+        val result = HttpServer.json.encodeToJsonElement(
+            InfoValues.serializer(),
+            info
+        )
+        // Wrap result in an object that includes deviceId at the top level
+        val resultObj = buildJsonObject {
+            put("deviceId", deviceId)
+            // Spread the InfoValues fields into the result
+            result.jsonObject.forEach { (key, value) -> put(key, value) }
+        }
+        call.respond(ApiResponse.success("Device info", resultObj))
+    }
+
     post("/set/overlay") {
         try {
             val body = call.receiveText()

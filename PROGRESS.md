@@ -101,3 +101,6 @@
 - Pixel shift: random -6 to +6 dp offset every 60s with animated transitions to prevent burn-in
 - Focus management: counter-based LaunchedEffect keys for reliable focus restoration, global Back/Left interceptor on right panel
 - SetupActivity loads persisted state via local PersistenceManager when service isn't running
+
+## Post-Phase: HA Integration Support
+- Added `GET /info` endpoint in SettingsRoutes returning full `InfoValues` + `deviceId` for HA coordinator polling
