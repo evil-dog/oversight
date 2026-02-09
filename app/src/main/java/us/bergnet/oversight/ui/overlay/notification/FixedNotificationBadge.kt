@@ -47,6 +47,8 @@ fun FixedNotificationBadge(
 
     val size = notification.size
     val showText = !collapsed && !notification.text.isNullOrBlank()
+    val iconOnlyPadding = (size.padding + size.imageSize * 0.2f).coerceAtLeast(size.padding + 2f)
+    val currentPadding = if (showText) size.padding else iconOnlyPadding
 
     val borderMod = if (borderColor != null) {
         Modifier.border(1.dp, borderColor, shape)
@@ -60,7 +62,7 @@ fun FixedNotificationBadge(
             .clip(shape)
             .then(borderMod)
             .background(bgColor)
-            .padding(horizontal = size.padding.dp, vertical = size.padding.dp),
+            .padding(currentPadding.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {

@@ -1,7 +1,6 @@
 package us.bergnet.oversight.ui.overlay.notification
 
-import android.view.ViewGroup
-import android.widget.FrameLayout
+import android.view.TextureView
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -16,9 +15,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
-import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.ui.PlayerView
+import androidx.media3.exoplayer.rtsp.RtspMediaSource
+import androidx.media3.exoplayer.source.MediaSource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
@@ -61,33 +60,42 @@ fun NotificationPopup(
         exit = shrinkOut(shrinkTowards = expandAlignment, clip = false) + fadeOut()
     ) {
         if (notification != null) {
+            val bgColor = ColorParser.parseOrDefault(
+                layout.backgroundColor, Color.Black.copy(alpha = 0.4f)
+            )
+            val hasImage = layout.imageDisplay && !notification.image.isNullOrBlank()
+            val hasVideo = !notification.video.isNullOrBlank()
+
             Column(
-                modifier = Modifier.padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                modifier = Modifier
+                    .padding(8.dp)
+                    .widthIn(max = layout.maxWidth.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(bgColor),
             ) {
-                // Image
-                if (layout.imageDisplay && !notification.image.isNullOrBlank()) {
+                // Row 1: Layout content (icon + text)
+                NotificationLayoutContent(
+                    notification, layout,
+                    overrideBgColor = Color.Transparent
+                )
+
+                // Row 2: Image or video, full width below the text
+                if (hasImage) {
                     NotificationImage(
-                        url = notification.image,
-                        small = layout.imageSmall
-                    )
-                }
-
-                // Video
-                if (!notification.video.isNullOrBlank()) {
-                    NotificationVideo(
-                        url = notification.video,
+                        url = notification.image!!,
                         modifier = Modifier
-                            .widthIn(max = layout.maxWidth.dp)
-                            .heightIn(max = 200.dp)
+                            .fillMaxWidth()
+                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 }
-
-                // Layout content
-                when (layout.name) {
-                    "Only Icon" -> IconOnlyNotificationLayout(notification, layout)
-                    "Minimalist" -> MinimalistNotificationLayout(notification, layout)
-                    else -> DefaultNotificationLayout(notification, layout)
+                if (hasVideo) {
+                    NotificationVideo(
+                        url = notification.video!!,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
+                    )
                 }
             }
         }
@@ -95,13 +103,29 @@ fun NotificationPopup(
 }
 
 @Composable
+private fun NotificationLayoutContent(
+    notification: ReceivedNotification,
+    layout: NotificationLayout,
+    overrideBgColor: Color? = null
+) {
+    when (layout.name) {
+        "Only Icon" -> IconOnlyNotificationLayout(
+            notification, layout, overrideBgColor = overrideBgColor
+        )
+        "Minimalist" -> MinimalistNotificationLayout(
+            notification, layout, overrideBgColor = overrideBgColor
+        )
+        else -> DefaultNotificationLayout(
+            notification, layout, overrideBgColor = overrideBgColor
+        )
+    }
+}
+
+@Composable
 fun NotificationImage(
     url: String,
-    small: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val size = if (small) 80.dp else 160.dp
-
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
             .data(url)
@@ -109,44 +133,92 @@ fun NotificationImage(
             .build(),
         contentDescription = null,
         modifier = modifier
-            .widthIn(max = size)
-            .heightIn(max = size)
             .clip(RoundedCornerShape(8.dp)),
-        contentScale = ContentScale.Fit
+        contentScale = ContentScale.FillWidth
     )
 }
 
-@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun NotificationVideo(
     url: String,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val exoPlayer = remember {
+
+    val exoPlayer = remember(url) {
         ExoPlayer.Builder(context).build().apply {
-            val mediaItem = MediaItem.fromUri(url)
-            setMediaItem(mediaItem)
-            prepare()
-            playWhenReady = true
+            volume = 0f
+            addListener(object : androidx.media3.common.Player.Listener {
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    android.util.Log.e("NotificationVideo", "ExoPlayer error: ${error.message}", error)
+                }
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    val stateName = when (playbackState) {
+                        androidx.media3.common.Player.STATE_IDLE -> "IDLE"
+                        androidx.media3.common.Player.STATE_BUFFERING -> "BUFFERING"
+                        androidx.media3.common.Player.STATE_READY -> "READY"
+                        androidx.media3.common.Player.STATE_ENDED -> "ENDED"
+                        else -> "UNKNOWN"
+                    }
+                    android.util.Log.d("NotificationVideo", "Playback state: $stateName")
+                }
+            })
         }
     }
 
     DisposableEffect(url) {
         onDispose {
+            exoPlayer.stop()
             exoPlayer.release()
         }
     }
 
+    // Use a raw TextureView instead of PlayerView. PlayerView uses SurfaceView
+    // by default, which creates its own window surface and renders full-screen
+    // black in TYPE_APPLICATION_OVERLAY windows. TextureView composites within
+    // the normal view hierarchy.
     AndroidView(
-        factory = {
-            PlayerView(it).apply {
-                player = exoPlayer
-                useController = false
-                layoutParams = FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT
-                )
+        factory = { ctx ->
+            TextureView(ctx).apply {
+                surfaceTextureListener = object : android.graphics.SurfaceTexture.OnFrameAvailableListener,
+                    TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(
+                        surface: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
+                        android.util.Log.d("NotificationVideo", "SurfaceTexture available ${width}x${height}, starting playback for $url")
+                        exoPlayer.setVideoTextureView(this@apply)
+                        val mediaItem = MediaItem.fromUri(url)
+                        if (url.startsWith("rtsp://", ignoreCase = true)) {
+                            // Force TCP interleaved transport for RTSP — many servers
+                            // (go2rtc, mediamtx, etc.) reject UDP with 461.
+                            val rtspSource = RtspMediaSource.Factory()
+                                .setForceUseRtpTcp(true)
+                                .createMediaSource(mediaItem)
+                            exoPlayer.setMediaSource(rtspSource)
+                        } else {
+                            exoPlayer.setMediaItem(mediaItem)
+                        }
+                        exoPlayer.prepare()
+                        exoPlayer.playWhenReady = true
+                    }
+
+                    override fun onSurfaceTextureSizeChanged(
+                        surface: android.graphics.SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {}
+
+                    override fun onSurfaceTextureDestroyed(surface: android.graphics.SurfaceTexture): Boolean {
+                        exoPlayer.setVideoTextureView(null)
+                        return true
+                    }
+
+                    override fun onSurfaceTextureUpdated(surface: android.graphics.SurfaceTexture) {}
+
+                    override fun onFrameAvailable(surfaceTexture: android.graphics.SurfaceTexture?) {}
+                }
             }
         },
         modifier = modifier

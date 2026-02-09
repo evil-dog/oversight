@@ -104,3 +104,11 @@
 
 ## Post-Phase: HA Integration Support
 - Added `GET /info` endpoint in SettingsRoutes returning full `InfoValues` + `deviceId` for HA coordinator polling
+
+## Bug Fixes: Notification UI
+- Fixed icon-only badge padding: added proportional extra padding when text is hidden (icon-only or collapsed)
+- Fixed popup notification layout: image/video now render below the text row inside the shared background, scaled to popup width
+- Fixed video playback in overlay windows: replaced SurfaceView (PlayerView) with raw TextureView to avoid full-screen black surface in TYPE_APPLICATION_OVERLAY
+- Fixed RTSP video streams: force TCP interleaved transport via RtspMediaSource.setForceUseRtpTcp(true) — many servers reject UDP (461)
+- Video notifications play muted (volume = 0f) and auto-cleanup on dismiss
+- Notification layouts accept overrideBgColor parameter to avoid double-background when wrapped by media container

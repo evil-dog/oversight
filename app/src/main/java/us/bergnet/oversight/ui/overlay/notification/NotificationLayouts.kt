@@ -27,9 +27,11 @@ import us.bergnet.oversight.util.IconResolver
 fun DefaultNotificationLayout(
     notification: ReceivedNotification,
     layout: NotificationLayout,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overrideBgColor: Color? = null
 ) {
-    val bgColor = ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
+    val bgColor = overrideBgColor
+        ?: ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
 
     Row(
         modifier = modifier
@@ -143,18 +145,21 @@ fun DefaultNotificationLayout(
 fun MinimalistNotificationLayout(
     notification: ReceivedNotification,
     layout: NotificationLayout,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overrideBgColor: Color? = null
 ) {
-    DefaultNotificationLayout(notification, layout, modifier)
+    DefaultNotificationLayout(notification, layout, modifier, overrideBgColor)
 }
 
 @Composable
 fun IconOnlyNotificationLayout(
     notification: ReceivedNotification,
     layout: NotificationLayout,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overrideBgColor: Color? = null
 ) {
-    val bgColor = ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
+    val bgColor = overrideBgColor
+        ?: ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
     val iconUrl = notification.getDisplayIcon()
 
     Box(
