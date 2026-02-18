@@ -388,19 +388,34 @@ do_post "/notify" '{"title": "Bottom Right", "message": "Bottom-right corner", "
 pause_for_visual "Popup appears in BOTTOM-RIGHT corner"
 sleep 6
 
-test_name "smallIcon (MDI icon name)"
-do_post "/notify" '{"title": "MDI Bell", "message": "Icon via mdi:bell", "smallIcon": "mdi:bell", "duration": 6}'
-pause_for_visual "Popup shows a bell icon on the left side"
+test_name "smallIcon standalone (no largeIcon) — circle badge in icon slot"
+do_post "/notify" '{"title": "Small Icon Only", "message": "Bell shown as standalone circle badge", "smallIcon": "mdi:bell", "duration": 6}'
+pause_for_visual "Bell icon appears in a dark semi-transparent circle in the icon slot (NOT full-size)"
 sleep 7
 
-test_name "largeIcon (MDI) — shown in preference to smallIcon"
-do_post "/notify" '{"title": "Large Icon", "message": "mdi:home as large icon", "largeIcon": "mdi:home", "smallIcon": "mdi:bell", "duration": 6}'
-pause_for_visual "Popup shows home icon (largeIcon wins over smallIcon)"
+test_name "smallIconColor = #FF5733 (orange-red)"
+do_post "/notify" '{"title": "Colored Small Icon", "message": "Bell badge should be orange-red", "smallIcon": "mdi:bell", "smallIconColor": "#FF5733", "duration": 6}'
+pause_for_visual "Bell circle badge is orange-red"
+sleep 7
+
+test_name "largeIcon (MDI) + smallIcon badge overlay"
+do_post "/notify" '{"title": "Large + Badge", "message": "Home icon with bell badge overlay", "largeIcon": "mdi:home", "smallIcon": "mdi:bell", "duration": 6}'
+pause_for_visual "Home icon on the left, bell circle badge overlaid on its bottom-right corner"
+sleep 7
+
+test_name "largeIcon (MDI) + smallIcon badge overlay with color"
+do_post "/notify" '{"title": "Badge with Color", "message": "Home icon with green bell badge", "largeIcon": "mdi:home", "smallIcon": "mdi:bell", "smallIconColor": "#4CAF50", "duration": 6}'
+pause_for_visual "Home icon on the left, green bell circle badge on its bottom-right corner"
 sleep 7
 
 test_name "largeIcon (URL image)"
 do_post "/notify" '{"title": "URL Icon", "message": "Icon loaded from URL", "largeIcon": "https://dummyimage.com/100x100/2196f3/fff.png", "duration": 8}'
-pause_for_visual "Popup shows a blue square icon on the left (loaded from URL)"
+pause_for_visual "Blue square image loaded from URL in the icon slot"
+sleep 9
+
+test_name "largeIcon (URL image) + smallIcon badge overlay"
+do_post "/notify" '{"title": "URL + Badge", "message": "URL image with bell badge overlay", "largeIcon": "https://dummyimage.com/100x100/2196f3/fff.png", "smallIcon": "mdi:bell", "duration": 8}'
+pause_for_visual "Blue square image on the left, bell circle badge overlaid on its bottom-right corner"
 sleep 9
 
 test_name "image URL (appears below text)"
