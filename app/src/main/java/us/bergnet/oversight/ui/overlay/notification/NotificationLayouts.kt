@@ -2,6 +2,7 @@ package us.bergnet.oversight.ui.overlay.notification
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,29 +43,40 @@ fun DefaultNotificationLayout(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Icon
+        // Primary icon with optional small icon badge overlay
         if (layout.iconDisplay) {
-            val iconUrl = notification.getDisplayIcon()
-            if (!iconUrl.isNullOrBlank()) {
-                if (IconResolver.isMdiIcon(iconUrl)) {
-                    MdiIcon(
-                        name = iconUrl,
-                        tint = Color.White,
-                        size = layout.iconSize.dp
-                    )
-                } else {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(iconUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(layout.iconSize.dp)
-                            .clip(RoundedCornerShape(4.dp)),
-                        contentScale = ContentScale.Fit
-                    )
+            val primaryIcon = notification.getDisplayIcon()
+            val smallIconName = notification.smallIcon?.takeIf {
+                layout.iconSecondaryDisplay && IconResolver.isMdiIcon(it)
+            }
+            val smallIconTint = ColorParser.parseOrDefault(notification.smallIconColor, Color.White)
+
+            if (primaryIcon != null) {
+                Box(modifier = Modifier.size(layout.iconSize.dp)) {
+                    if (IconResolver.isMdiIcon(primaryIcon)) {
+                        MdiIcon(name = primaryIcon, tint = Color.White, size = layout.iconSize.dp)
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(primaryIcon).crossfade(true).build(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(layout.iconSize.dp)
+                                .clip(RoundedCornerShape(4.dp)),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    if (smallIconName != null) {
+                        SmallIconBadge(
+                            name = smallIconName,
+                            tint = smallIconTint,
+                            size = layout.iconSecondarySize,
+                            modifier = Modifier.align(Alignment.BottomEnd)
+                        )
+                    }
                 }
+            } else if (smallIconName != null) {
+                SmallIconBadge(name = smallIconName, tint = smallIconTint, size = layout.iconSecondarySize)
             }
         }
 
@@ -120,24 +132,6 @@ fun DefaultNotificationLayout(
             }
         }
 
-        // Secondary icon
-        if (layout.iconSecondaryDisplay) {
-            notification.smallIcon?.let { iconUrl ->
-                if (!IconResolver.isMdiIcon(iconUrl)) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(LocalContext.current)
-                            .data(iconUrl)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(layout.iconSecondarySize.dp)
-                            .clip(RoundedCornerShape(2.dp)),
-                        contentScale = ContentScale.Fit
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -160,7 +154,9 @@ fun IconOnlyNotificationLayout(
 ) {
     val bgColor = overrideBgColor
         ?: ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
-    val iconUrl = notification.getDisplayIcon()
+    val primaryIcon = notification.getDisplayIcon()
+    val smallIconName = notification.smallIcon?.takeIf { IconResolver.isMdiIcon(it) }
+    val smallIconTint = ColorParser.parseOrDefault(notification.smallIconColor, Color.White)
 
     Box(
         modifier = modifier
@@ -169,18 +165,55 @@ fun IconOnlyNotificationLayout(
             .padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (!iconUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(iconUrl)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier
-                    .size(layout.iconSize.dp)
-                    .clip(RoundedCornerShape(4.dp)),
-                contentScale = ContentScale.Fit
-            )
+        if (primaryIcon != null) {
+            Box(modifier = Modifier.size(layout.iconSize.dp)) {
+                if (IconResolver.isMdiIcon(primaryIcon)) {
+                    MdiIcon(name = primaryIcon, tint = Color.White, size = layout.iconSize.dp)
+                } else {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(primaryIcon).crossfade(true).build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(layout.iconSize.dp)
+                            .clip(RoundedCornerShape(4.dp)),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                if (smallIconName != null) {
+                    SmallIconBadge(
+                        name = smallIconName,
+                        tint = smallIconTint,
+                        size = layout.iconSecondarySize,
+                        modifier = Modifier.align(Alignment.BottomEnd)
+                    )
+                }
+            }
+        } else if (smallIconName != null) {
+            SmallIconBadge(name = smallIconName, tint = smallIconTint, size = layout.iconSecondarySize)
         }
+    }
+}
+
+/**
+ * Small MDI icon rendered inside a dark semi-transparent circle.
+ * Used standalone when no large icon is present, or as an overlay badge
+ * on the bottom-right corner of the large icon.
+ */
+@Composable
+private fun SmallIconBadge(
+    name: String,
+    tint: Color,
+    size: Float,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .size(size.dp)
+            .clip(CircleShape)
+            .background(Color(0x99000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        MdiIcon(name = name, tint = tint, size = (size * 0.65f).dp)
     }
 }

@@ -33,7 +33,7 @@ data class ReceivedNotification(
     }
 
     fun getDisplayIcon(): String? {
-        return largeIcon ?: appIcon ?: smallIcon
+        return largeIcon ?: appIcon
     }
 
     fun isEmpty(): Boolean {
