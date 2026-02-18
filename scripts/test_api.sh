@@ -272,7 +272,7 @@ do_post "/set/notifications" '{"notificationDuration": 8}'
 test_name "notificationLayoutName = Minimalist"
 do_post "/set/notifications" '{"notificationLayoutName": "Minimalist"}'
 do_post "/notify" '{"title": "Minimalist", "message": "Compact layout style", "largeIcon": "mdi:bell", "duration": 6}'
-pause_for_visual "Popup uses Minimalist layout (compact text, smaller styling)"
+pause_for_visual "Popup uses Minimalist layout: text-only (no icon, no source), smaller and narrower than Default"
 sleep 7
 
 test_name "notificationLayoutName = Only Icon"
@@ -319,7 +319,7 @@ do_post "/set/settings" '{"deviceName": "OverSight"}'
 
 test_name "displayDebug = true"
 do_post "/set/settings" '{"displayDebug": true}'
-pause_for_visual "Debug info should appear on screen (if implemented)"
+echo "  (API-only: no debug UI implemented yet)"
 
 test_name "displayDebug = false"
 do_post "/set/settings" '{"displayDebug": false}'

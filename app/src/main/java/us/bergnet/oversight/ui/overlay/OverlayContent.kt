@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -48,6 +49,8 @@ fun OverlayContent() {
     // Determine toast corner: per-notification override or hot corner default
     val toastCorner = currentNotification?.corner ?: hotCorner
     val toastAtHotCorner = toastCorner == hotCorner
+
+    val fixedNotificationsAlpha = (infoValues.notifications?.fixedNotificationsVisibility ?: 100) / 100f
 
     val activeFixed = if (displayFixedNotifications) {
         fixedNotifications.filter { !it.isExpired() && it.visible && !it.isEmpty() }
@@ -127,7 +130,8 @@ fun OverlayContent() {
                             clockVisibility = clockVisibility,
                             overlayCustomization = overlayCustomization,
                             clockTextFormat = clockTextFormat,
-                            activeFixed = activeFixed
+                            activeFixed = activeFixed,
+                            fixedAlpha = fixedNotificationsAlpha
                         )
                     } else {
                         ClockFixedRow(
@@ -135,7 +139,8 @@ fun OverlayContent() {
                             clockVisibility = clockVisibility,
                             overlayCustomization = overlayCustomization,
                             clockTextFormat = clockTextFormat,
-                            activeFixed = activeFixed
+                            activeFixed = activeFixed,
+                            fixedAlpha = fixedNotificationsAlpha
                         )
                         if (toastAtHotCorner) {
                             ToastSection(
@@ -186,7 +191,8 @@ private fun ClockFixedRow(
     clockVisibility: Int,
     overlayCustomization: us.bergnet.oversight.data.model.OverlayCustomization,
     clockTextFormat: String?,
-    activeFixed: List<FixedNotification>
+    activeFixed: List<FixedNotification>,
+    fixedAlpha: Float = 1f
 ) {
     val showClock = clockVisibility > 0
     val expandFrom = if (hotCorner.isStart()) Alignment.Start else Alignment.End
@@ -251,7 +257,9 @@ private fun ClockFixedRow(
                         enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
                         exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
                     ) {
-                        CollapsibleBadge(notification = item.notification)
+                        Box(modifier = Modifier.alpha(fixedAlpha)) {
+                            CollapsibleBadge(notification = item.notification)
+                        }
                     }
                 }
             }
@@ -263,7 +271,9 @@ private fun ClockFixedRow(
                         enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
                         exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
                     ) {
-                        CollapsibleBadge(notification = item.notification)
+                        Box(modifier = Modifier.alpha(fixedAlpha)) {
+                            CollapsibleBadge(notification = item.notification)
+                        }
                     }
                 }
             }

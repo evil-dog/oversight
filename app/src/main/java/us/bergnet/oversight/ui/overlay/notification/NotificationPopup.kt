@@ -81,6 +81,7 @@ fun NotificationPopup(
             Column(
                 modifier = Modifier
                     .padding(8.dp)
+                    .width(IntrinsicSize.Max)
                     .widthIn(max = layout.maxWidth.dp)
                     .clip(RoundedCornerShape(12.dp))
                     .background(bgColor),

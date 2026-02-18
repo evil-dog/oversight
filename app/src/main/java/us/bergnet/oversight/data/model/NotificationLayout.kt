@@ -26,6 +26,8 @@ data class NotificationLayout(
 
         val MINIMALIST = NotificationLayout(
             name = "Minimalist",
+            iconDisplay = false,
+            sourceDisplay = false,
             titleFormat = NotificationTextFormat.TITLE_MINIMALIST,
             messageFormat = NotificationTextFormat.MESSAGE_MINIMALIST,
             maxWidth = 220f
