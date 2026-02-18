@@ -141,6 +141,7 @@ object OverlayStateStore {
 
     fun enqueueNotification(notification: ReceivedNotification) {
         if (notification.isEmpty()) return
+        if (!isDisplayNotifications()) return
 
         val current = _currentNotification.value
         if (current == null) {
