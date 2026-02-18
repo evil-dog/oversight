@@ -128,6 +128,14 @@ object OverlayStateStore {
         _fixedNotifications.value = _fixedNotifications.value.filter { it.id != id }
     }
 
+    fun removeExpiredFixedNotifications() {
+        val current = _fixedNotifications.value
+        val filtered = current.filter { !it.isExpired() }
+        if (filtered.size != current.size) {
+            _fixedNotifications.value = filtered
+        }
+    }
+
     fun getActiveFixedNotifications(): List<FixedNotification> =
         _fixedNotifications.value.filter { !it.isExpired() && it.visible && !it.isEmpty() }
 

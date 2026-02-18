@@ -45,7 +45,7 @@ fun FixedNotificationBadge(
     val iconColor = ColorParser.parseOrDefault(notification.iconColor, Color.White)
     val textColor = ColorParser.parseOrDefault(notification.messageColor, Color.White)
 
-    val size = notification.size
+    val size = notification.size ?: us.bergnet.oversight.data.model.enums.FixedNotificationSize.NORMAL
     val showText = !collapsed && !notification.text.isNullOrBlank()
     val iconOnlyPadding = (size.padding + size.imageSize * 0.2f).coerceAtLeast(size.padding + 2f)
     val currentPadding = if (showText) size.padding else iconOnlyPadding

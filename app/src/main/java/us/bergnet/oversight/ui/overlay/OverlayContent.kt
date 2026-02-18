@@ -55,6 +55,24 @@ fun OverlayContent() {
         emptyList()
     }
 
+    // Expiration cleanup: wake at the next soonest expiry so badges disappear on time.
+    // Falls back to a 10s poll if no expiration epoch is set on any notification.
+    LaunchedEffect(fixedNotifications) {
+        while (true) {
+            val nextExpiry = fixedNotifications
+                .mapNotNull { it.expirationEpoch }
+                .filter { it > System.currentTimeMillis() }
+                .minOrNull()
+            val delayMs = if (nextExpiry != null) {
+                (nextExpiry - System.currentTimeMillis()).coerceAtLeast(100L)
+            } else {
+                10_000L
+            }
+            delay(delayMs)
+            OverlayStateStore.removeExpiredFixedNotifications()
+        }
+    }
+
     // Pixel shift: small random offset every 60s to prevent burn-in
     val pixelShift = infoValues.settings?.pixelShift ?: false
     var shiftX by remember { mutableStateOf(0.dp) }

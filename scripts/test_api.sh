@@ -108,6 +108,14 @@ do_post() {
     fi
 }
 
+# Like do_post but silently ignores failure — used for cleanup where the item
+# may have already expired/been removed from state.
+do_post_silent() {
+    local path="$1"
+    local body="$2"
+    curl -s -X POST "${BASE}${path}" -H "Content-Type: application/json" -d "${body}" > /dev/null
+}
+
 # Like do_post but expects failure (success=false → test passes).
 do_post_expect_fail() {
     local path="$1"
@@ -522,9 +530,16 @@ pause_for_visual "If screen was off/dim, it should now be on"
 # Cleanup
 # ---------------------------------------------------------------------------
 section "Cleanup — hiding all test badges"
-for badge_id in "$FN_ID" "expire-test" "expire-str-test" "collapse-test" "collapse-repeat" "multi-1" "multi-2" "multi-3"; do
+# Use do_post_silent for badges that may have already auto-expired and been
+# removed from state (expire-test, expire-str-test). Hiding a non-existent
+# badge with no icon/text is correctly rejected by the API — not a bug.
+for badge_id in "$FN_ID" "collapse-test" "collapse-repeat" "multi-1" "multi-2" "multi-3"; do
     CURRENT_TEST="Cleanup: hide ${badge_id}"
     do_post "/notify_fixed" "{\"id\": \"${badge_id}\", \"visible\": false}"
+done
+for badge_id in "expire-test" "expire-str-test"; do
+    echo -e "\n  ${DIM}Cleanup (silent): hide ${badge_id}${RESET}"
+    do_post_silent "/notify_fixed" "{\"id\": \"${badge_id}\", \"visible\": false}"
 done
 
 # ---------------------------------------------------------------------------
