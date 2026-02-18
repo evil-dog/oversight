@@ -18,7 +18,8 @@ data class NotificationLayout(
     var iconSecondaryDisplay: Boolean = true,
     val iconSecondarySize: Float = 20f,
     val maxWidth: Float = 260f,
-    var backgroundColor: String = "#66000000"
+    var backgroundColor: String = "#66000000",
+    val progressBarColor: String = "#2196F3"
 ) {
     companion object {
         val DEFAULT = NotificationLayout()

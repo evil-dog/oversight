@@ -2,6 +2,9 @@ package us.bergnet.oversight.ui.overlay.notification
 
 import android.view.TextureView
 import androidx.compose.animation.*
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +24,7 @@ import androidx.media3.exoplayer.source.MediaSource
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.data.model.enums.HotCorner
@@ -35,12 +39,20 @@ fun NotificationPopup(
     onDismiss: () -> Unit
 ) {
     var visible by remember(notification?.id) { mutableStateOf(false) }
+    val progress = remember(notification?.id) { Animatable(1f) }
 
     LaunchedEffect(notification?.id) {
         if (notification != null) {
             visible = true
-            val duration = notification.duration ?: durationSeconds
-            delay(duration * 1000L)
+            val durationMs = (notification.duration ?: durationSeconds) * 1000
+            progress.snapTo(1f)
+            launch {
+                progress.animateTo(
+                    targetValue = 0f,
+                    animationSpec = tween(durationMillis = durationMs, easing = LinearEasing)
+                )
+            }
+            delay(durationMs.toLong())
             visible = false
             delay(500L) // wait for exit animation
             onDismiss()
@@ -97,6 +109,15 @@ fun NotificationPopup(
                             .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 }
+
+                // Progress bar: shrinks left-to-right as the timer counts down
+                val barColor = ColorParser.parseOrDefault(layout.progressBarColor, Color(0xFF2196F3))
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(progress.value)
+                        .height(3.dp)
+                        .background(barColor)
+                )
             }
         }
     }
