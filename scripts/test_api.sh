@@ -399,13 +399,13 @@ pause_for_visual "Popup shows home icon (largeIcon wins over smallIcon)"
 sleep 7
 
 test_name "largeIcon (URL image)"
-do_post "/notify" '{"title": "URL Icon", "message": "Icon loaded from URL", "largeIcon": "https://www.home-assistant.io/images/home-assistant-logo.png", "duration": 8}'
-pause_for_visual "Popup shows HA logo loaded from URL as the left-side icon"
+do_post "/notify" '{"title": "URL Icon", "message": "Icon loaded from URL", "largeIcon": "https://dummyimage.com/100x100/2196f3/fff.png", "duration": 8}'
+pause_for_visual "Popup shows a blue square icon on the left (loaded from URL)"
 sleep 9
 
 test_name "image URL (appears below text)"
-do_post "/notify" '{"title": "Image Notification", "message": "Photo appears below text", "image": "https://picsum.photos/400/200", "duration": 10}'
-pause_for_visual "Popup shows text row, then a photo scaled to popup width below it"
+do_post "/notify" '{"title": "Image Notification", "message": "Photo appears below text", "image": "https://dummyimage.com/400x200/333333/ffffff.png&text=Test+Image", "duration": 10}'
+pause_for_visual "Popup shows text row, then a dark grey image scaled to popup width below it"
 sleep 11
 
 test_name "video (RTSP)"
