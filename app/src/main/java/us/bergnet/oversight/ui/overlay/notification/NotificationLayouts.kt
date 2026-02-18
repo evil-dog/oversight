@@ -71,7 +71,7 @@ fun DefaultNotificationLayout(
                             name = smallIconName,
                             tint = smallIconTint,
                             size = layout.iconSecondarySize,
-                            modifier = Modifier.align(Alignment.BottomEnd)
+                            modifier = Modifier.align(Alignment.TopEnd)
                         )
                     }
                 }
@@ -185,7 +185,7 @@ fun IconOnlyNotificationLayout(
                         name = smallIconName,
                         tint = smallIconTint,
                         size = layout.iconSecondarySize,
-                        modifier = Modifier.align(Alignment.BottomEnd)
+                        modifier = Modifier.align(Alignment.TopEnd)
                     )
                 }
             }

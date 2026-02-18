@@ -238,47 +238,73 @@ do_post "/set/overlay" '{"overlayVisibility": 0, "clockOverlayVisibility": 100, 
 # ---------------------------------------------------------------------------
 section "3. POST /set/notifications"
 
-test_name "displayNotifications = false"
+# Create a persistent badge now so the fixed-notification setting tests
+# have something visible to show/hide/fade.
+SETTINGS_BADGE_ID="settings-test-badge"
+test_name "Setup: create badge for fixed notification setting tests"
+do_post "/notify_fixed" "{\"id\": \"${SETTINGS_BADGE_ID}\", \"icon\": \"mdi:cog\", \"text\": \"Settings Test\"}"
+pause_for_visual "'Settings Test' badge with cog icon appears next to the clock"
+
+test_name "displayNotifications = false (verify popup suppressed)"
 do_post "/set/notifications" '{"displayNotifications": false}'
-pause_for_visual "Toast popups should no longer appear (send a test notify to verify)"
+do_post "/notify" '{"title": "Should Be Hidden", "message": "This popup must NOT appear", "duration": 5}'
+pause_for_visual "NO popup should have appeared on screen"
+sleep 2
 
 test_name "displayNotifications = true (restore)"
 do_post "/set/notifications" '{"displayNotifications": true}'
 
-test_name "notificationDuration = 3 (short)"
+test_name "notificationDuration = 3 (verify short dismiss)"
 do_post "/set/notifications" '{"notificationDuration": 3}'
+do_post "/notify" '{"title": "Short Duration", "message": "Disappears in ~3 seconds"}'
+pause_for_visual "Popup appeared and dismissed after ~3 seconds"
+sleep 4
 
-test_name "notificationDuration = 15 (long)"
+test_name "notificationDuration = 15 (verify long display)"
 do_post "/set/notifications" '{"notificationDuration": 15}'
+do_post "/notify" '{"title": "Long Duration", "message": "Stays visible for ~15 seconds"}'
+pause_for_visual "Popup is still visible — confirm it has NOT dismissed yet (15s total)"
+sleep 16
 
 test_name "notificationDuration = 8 (restore default)"
 do_post "/set/notifications" '{"notificationDuration": 8}'
 
 test_name "notificationLayoutName = Minimalist"
 do_post "/set/notifications" '{"notificationLayoutName": "Minimalist"}'
+do_post "/notify" '{"title": "Minimalist", "message": "Compact layout style", "largeIcon": "mdi:bell", "duration": 6}'
+pause_for_visual "Popup uses Minimalist layout (compact text, smaller styling)"
+sleep 7
 
 test_name "notificationLayoutName = Only Icon"
 do_post "/set/notifications" '{"notificationLayoutName": "Only Icon"}'
+do_post "/notify" '{"title": "Icon Only", "message": "Only the icon should show", "largeIcon": "mdi:bell", "duration": 6}'
+pause_for_visual "Popup shows only the bell icon — no title or message text"
+sleep 7
 
 test_name "notificationLayoutName = Default (restore)"
 do_post "/set/notifications" '{"notificationLayoutName": "Default"}'
 
 test_name "displayFixedNotifications = false"
 do_post "/set/notifications" '{"displayFixedNotifications": false}'
-pause_for_visual "Fixed notification badges should be hidden"
+pause_for_visual "'Settings Test' badge next to the clock should now be hidden"
 
 test_name "displayFixedNotifications = true (restore)"
 do_post "/set/notifications" '{"displayFixedNotifications": true}'
+pause_for_visual "'Settings Test' badge should reappear"
 
 test_name "fixedNotificationsVisibility = 50"
 do_post "/set/notifications" '{"fixedNotificationsVisibility": 50}'
-pause_for_visual "Fixed badges should appear semi-transparent"
+pause_for_visual "'Settings Test' badge appears semi-transparent/dimmed"
 
 test_name "fixedNotificationsVisibility = 100 (restore)"
 do_post "/set/notifications" '{"fixedNotificationsVisibility": 100}'
 
 test_name "All notification fields in one request"
 do_post "/set/notifications" '{"displayNotifications": true, "notificationLayoutName": "Default", "notificationDuration": 8, "displayFixedNotifications": true, "fixedNotificationsVisibility": 100}'
+
+# Clean up the settings test badge
+CURRENT_TEST="Cleanup: remove settings test badge"
+do_post "/notify_fixed" "{\"id\": \"${SETTINGS_BADGE_ID}\", \"visible\": false}"
 
 # ---------------------------------------------------------------------------
 # 4. POST /set/settings
