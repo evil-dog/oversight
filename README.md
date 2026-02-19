@@ -6,7 +6,7 @@ An Android TV application that displays a persistent, configurable overlay for c
 
 - **Clock overlay** — always-on clock with configurable font, color, and opacity
 - **Fixed notification badges** — persistent icon+text badges with collapsible animations, color theming, and expiration
-- **Toast notifications** — popup notifications with icon, title, message, image, and video (including RTSP streams)
+- **Toast notifications** — popup notifications with icon, title, message, image, video (including RTSP streams), and a countdown progress bar
 - **Background dimmer** — configurable full-screen darkening overlay
 - **REST API** — full control from any HTTP client on the local network
 - **mDNS discovery** — advertises as `_tvoverlay._tcp` for automatic detection by Home Assistant and other clients
@@ -43,7 +43,7 @@ docker run --rm --network host \
   bash -c 'adb connect <DEVICE_IP>:5555 && sleep 2 && adb install -r /project/app/build/outputs/apk/debug/app-debug.apk'
 ```
 
-Replace `<DEVICE_IP>` with your Android TV's IP address.
+Replace `<DEVICE_IP>` with your Android TV's IP address. ADB debugging must be enabled on the device.
 
 ## First Launch
 
@@ -85,8 +85,9 @@ Returns current device state and `deviceId`.
   "fixedNotificationsVisibility": 100
 }
 ```
-- `notificationLayoutName` — `Default` | `Minimalist` | `Only Icon`
+- `notificationLayoutName` — `Default` | `Minimalist` | `Only Icon` (or any custom layout name)
 - `notificationDuration` — default popup display time in seconds
+- `fixedNotificationsVisibility` — badge transparency, `0`–`100` (100 = fully visible)
 
 #### `POST /set/settings`
 ```json
@@ -109,13 +110,16 @@ Show a popup toast notification.
   "source": "Home Assistant",
   "largeIcon": "mdi:home",
   "smallIcon": "mdi:bell",
+  "smallIconColor": "#FF5733",
   "image": "https://example.com/snapshot.jpg",
   "video": "rtsp://192.168.1.100:8554/camera",
   "corner": "top_end",
   "duration": 8
 }
 ```
-- `largeIcon` / `smallIcon` — MDI icon name (e.g. `mdi:bell`) or image URL; `largeIcon` takes priority
+- `largeIcon` — MDI icon name (e.g. `mdi:bell`) or image URL for the primary icon
+- `smallIcon` — MDI icon name only; rendered as a small dark circle badge. Shown standalone if no `largeIcon`, or overlaid at the top-right of the large icon otherwise
+- `smallIconColor` — tint color for the small icon (hex string, e.g. `#FF5733`)
 - `corner` — per-notification corner override, independent of `hotCorner`
 - `duration` — display time in seconds, overrides global `notificationDuration`
 - `video` — supports RTSP (forced TCP), HLS, MP4, and other Media3-compatible URLs
@@ -148,7 +152,7 @@ Create or update a persistent badge. All fields except `id` are optional for upd
 - `showDuration` — seconds to show text before collapsing to icon-only
 - `collapseDuration` — seconds to stay collapsed before re-expanding (requires `repeatExpand: true`)
 - `repeatExpand` — whether to cycle expand/collapse continuously
-- `text` field also accepts `message` or `title` as aliases
+- `text` also accepts `message` or `title` as aliases
 - `messageColor` also accepts `textColor` as an alias
 
 #### `GET /fixed_notifications`
@@ -175,7 +179,17 @@ Returns all active (non-expired, visible) fixed notifications.
 #### `GET /{filter}` — filter layouts by name
 #### `POST /` — create or update a layout (sets it as active)
 
-Layout fields: `name`, `imageDisplay`, `titleDisplay`, `sourceDisplay`, `messageDisplay`, `iconDisplay`, `iconSize`, `iconSecondaryDisplay`, `iconSecondarySize`, `maxWidth`, `backgroundColor`, plus `titleFormat`, `sourceFormat`, `messageFormat` (each with `color`, `fontSize`, `fontWeight`, `maxLines`).
+**Built-in layouts:**
+
+| Layout | Description |
+|--------|-------------|
+| `Default` | Icon + source + title + message; up to 260dp wide |
+| `Minimalist` | Title + message only (no icon, no source); compact 220dp wide |
+| `Only Icon` | Large icon with optional small badge; no text |
+
+**Layout fields:** `name`, `imageDisplay`, `titleDisplay`, `sourceDisplay`, `messageDisplay`, `iconDisplay`, `iconSize`, `iconSecondaryDisplay`, `iconSecondarySize`, `maxWidth`, `backgroundColor`, `progressBarColor`, plus `titleFormat`, `sourceFormat`, `messageFormat` (each with `color`, `fontSize`, `fontWeight`, `maxLines`).
+
+- `progressBarColor` — countdown bar color at the bottom of popup notifications (default `#2196F3`)
 
 ### Device Control
 
@@ -195,13 +209,14 @@ Compatible clients (e.g. the OverSight Home Assistant integration) discover the 
 
 ## Testing
 
-An API test script is provided that covers every endpoint and parameter:
+An API test script covers every endpoint and parameter:
 
 ```bash
-./scripts/test_api.sh [HOST] [PORT]
+./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.119 5001
+PAUSE=0 ./scripts/test_api.sh         # API-only, skip visual prompts
 ```
 
-Defaults to `192.168.24.119:5001`. Visual checks prompt for pass/fail and produce a summary of failures at the end. Set `PAUSE=0` to run API-only checks without visual prompts.
+Visual checks prompt for pass/fail (`[p]ass / [f]ail / [s]kip`) and produce a failure summary at the end.
 
 ## Architecture
 
@@ -217,3 +232,7 @@ Defaults to `192.168.24.119:5001`. Visual checks prompt for pass/fail and produc
 | Overlay UI | `ui/overlay/OverlayContent.kt` |
 | Setup UI | `ui/setup/SetupActivity.kt` |
 | Receivers | `receiver/BootReceiver.kt`, `receiver/ScreenStateReceiver.kt` |
+
+## License
+
+MIT — see [LICENSE](LICENSE).

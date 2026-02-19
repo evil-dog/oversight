@@ -65,11 +65,13 @@ app/src/main/java/us/bergnet/oversight/
 ### Persistence
 `PersistenceManager` uses Jetpack DataStore Preferences with JSON serialization for complex objects. Auto-save is wired via `StateFlow.drop(1).debounce(500).collectLatest` observers. State is loaded before the overlay and HTTP server start.
 
+**Built-in layout versioning:** `loadAll()` always resets the built-in layouts (`Default`, `Minimalist`, `Only Icon`) to their current code definitions from `NotificationLayout.ALL_DEFAULTS`, while preserving user-created custom layouts. This ensures changes to built-in defaults take effect after an app update without clearing user data.
+
 ### mDNS
 `ZeroconfAdvertiser` uses Android `NsdManager`. A fresh `RegistrationListener` is created per registration to avoid NsdManager race conditions. Re-registers automatically when `deviceName` or `port` changes.
 
 ### Fixed Notification Partial Updates
-`OverlayStateStore.upsertFixedNotification()` merges incoming data into the existing notification via `mergeWith()`. Only `id` is required for updates; all other fields are nullable and keep their existing values when null.
+`OverlayStateStore.upsertFixedNotification()` merges incoming data into the existing notification via `mergeWith()`. Only `id` is required for updates; all other fields are nullable and keep their existing values when null. Fields with non-null defaults (like `size`) must be made nullable in the data class so the merge pattern works correctly.
 
 ## Critical Patterns & Gotchas
 
@@ -85,6 +87,18 @@ Fixed badges use `MutableTransitionState` so items continue animating out after 
 ### CollapsibleBadge State Machine
 `collapsed` state is keyed on `notification.id`. The `LaunchedEffect` runs a `while(true)` loop cycling expand→collapse→expand. Keys include `showDuration`, `collapseDuration`, and `repeatExpand` so changing these params restarts the timer correctly.
 
+### Notification Queue and `displayNotifications`
+`enqueueNotification()` drops notifications immediately when `displayNotifications = false`. This prevents a backlog that would flush on re-enable. Never accumulate notifications while the setting is off.
+
+### Progress Bar Width and `IntrinsicSize.Max`
+When a Column child uses `fillMaxWidth(fraction)`, it forces the Column to expand to its maximum constraint (`widthIn(max = X)`), even when the content is much narrower. Apply `Modifier.width(IntrinsicSize.Max)` before `widthIn(max = ...)` to let the Column size to its natural content width, then the bar animates within that. The bar has 0 intrinsic width so it doesn't influence the Column's intrinsic size calculation.
+
+### Video Aspect Ratio
+Use `aspectRatio(16f / 9f)` with `fillMaxWidth()` for video containers instead of a fixed height. A fixed height with dynamic width (from `IntrinsicSize.Max`) produces distorted/square video.
+
+### Small Icon (MDI Circle Badge)
+`smallIcon` is MDI-only (not a URL). It renders as a dark semi-transparent circle (`Color(0x99000000)`, `CircleShape`) with the MDI icon at 65% of the circle size. When `largeIcon` is also present, the badge is overlaid at `Alignment.TopEnd` of the large icon Box. When standalone (no large icon), it renders in place of the large icon. Use `smallIconColor` for tint.
+
 ### JSON Config
 `HttpServer.json` is configured with `ignoreUnknownKeys = true`, `isLenient = true`, `encodeDefaults = true`, `coerceInputValues = true`. This allows partial/legacy payloads without errors.
 
@@ -96,7 +110,7 @@ Fixed badges use `MutableTransitionState` so items continue animating out after 
 | POST | `/set/overlay` | overlayVisibility, clockOverlayVisibility, hotCorner |
 | POST | `/set/notifications` | displayNotifications, notificationLayoutName, notificationDuration, displayFixedNotifications, fixedNotificationsVisibility |
 | POST | `/set/settings` | deviceName, remotePort, pixelShift, displayDebug |
-| POST | `/notify` | Toast popup (title, message, source, image, video, smallIcon, largeIcon, corner, duration) |
+| POST | `/notify` | Toast popup (title, message, source, image, video, smallIcon, largeIcon, smallIconColor, corner, duration) |
 | POST | `/notify_fixed` | Fixed badge upsert (id, icon, text, colors, shape, size, expiration, collapse params) |
 | GET | `/fixed_notifications` | List active fixed notifications |
 | GET/POST | `/overlay_customization` | Clock font/color/shadow |

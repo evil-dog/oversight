@@ -27,3 +27,10 @@ secrets/
 
 # Logs
 *.log
+
+# Android Studio captures / profiler
+captures/
+*.hprof
+
+# Claude Code
+.claude/
