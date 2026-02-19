@@ -75,9 +75,14 @@ class PersistenceManager(private val context: Context) {
             }
 
             prefs[KEY_LAYOUT_LIST]?.let { value ->
-                val layoutList = json.decodeFromString<NotificationLayoutList>(value)
-                OverlayStateStore.setLayoutList(layoutList)
-                Log.d(TAG, "Loaded ${layoutList.list.size} notification layouts")
+                val persistedList = json.decodeFromString<NotificationLayoutList>(value)
+                // Always use current code definitions for built-in layouts so that
+                // changes to defaults take effect without clearing app data.
+                val builtInNames = NotificationLayout.ALL_DEFAULTS.map { it.name }.toSet()
+                val customLayouts = persistedList.list.filter { it.name !in builtInNames }
+                val mergedList = persistedList.copy(list = NotificationLayout.ALL_DEFAULTS + customLayouts)
+                OverlayStateStore.setLayoutList(mergedList)
+                Log.d(TAG, "Loaded ${mergedList.list.size} notification layouts (${customLayouts.size} custom)")
             }
 
             val deviceId = prefs[KEY_DEVICE_ID] ?: UUID.randomUUID().toString().also { newId ->

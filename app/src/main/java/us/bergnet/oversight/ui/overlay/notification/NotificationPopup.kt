@@ -106,7 +106,7 @@ fun NotificationPopup(
                         url = notification.video!!,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp)
+                            .aspectRatio(16f / 9f)
                             .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
                     )
                 }
