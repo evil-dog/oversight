@@ -85,7 +85,7 @@ private enum class SId {
     DEVICE_NAME, REMOTE_PORT,
     HOT_CORNER, CLOCK_VISIBILITY, DIMMER, PIXEL_SHIFT,
     DISPLAY_NOTIFICATIONS, NOTIFICATION_DURATION,
-    DISPLAY_FIXED,
+    DISPLAY_FIXED, FIXED_VISIBILITY,
     SERVICE_CONTROL, CLEAR_FIXED
 }
 
@@ -115,6 +115,7 @@ private val menuEntries = listOf(
     PanelEntry.Item(SId.NOTIFICATION_DURATION),
     PanelEntry.Section("Fixed Notifications"),
     PanelEntry.Item(SId.DISPLAY_FIXED),
+    PanelEntry.Item(SId.FIXED_VISIBILITY),
     PanelEntry.Section("Service"),
     PanelEntry.Item(SId.SERVICE_CONTROL),
     PanelEntry.Item(SId.CLEAR_FIXED),
@@ -136,6 +137,7 @@ private val settingMeta = mapOf(
     SId.DISPLAY_NOTIFICATIONS to SettingMeta("Display Notifications", "Show toast/popup notifications when received via the REST API.", "message-text-outline"),
     SId.NOTIFICATION_DURATION to SettingMeta("Notification Duration", "How long popup notifications are displayed before automatically dismissing.", "timer-outline"),
     SId.DISPLAY_FIXED to SettingMeta("Display Fixed", "Show persistent fixed notification badges alongside the clock overlay.", "pin-outline"),
+    SId.FIXED_VISIBILITY to SettingMeta("Fixed Visibility", "Opacity of fixed notification badges. 100% is fully visible, 0% is fully transparent.", "opacity"),
     SId.SERVICE_CONTROL to SettingMeta("Service Control", "Start, stop, or restart the overlay service.", "cog-outline"),
     SId.CLEAR_FIXED to SettingMeta("Clear Fixed Notifications", "Remove all fixed notification badges. Useful for clearing stale notifications.", "notification-clear-all"),
 )
@@ -185,6 +187,7 @@ fun SetupScreen(
     val displayNotifs = infoValues.notifications?.displayNotifications ?: true
     val duration = infoValues.notifications?.notificationDuration ?: 8
     val displayFixed = infoValues.notifications?.displayFixedNotifications ?: true
+    val fixedVisibility = infoValues.notifications?.fixedNotificationsVisibility ?: 100
     val ip = remember { NetworkUtils.getDeviceIpAddress() ?: "Unknown" }
 
     fun applyValue(id: SId, value: String) {
@@ -193,6 +196,7 @@ fun SetupScreen(
             SId.CLOCK_VISIBILITY -> OverlayStateStore.updateInfoValues(InfoValues(overlay = OverlayValues(clockOverlayVisibility = value.toInt())))
             SId.DIMMER -> OverlayStateStore.updateInfoValues(InfoValues(overlay = OverlayValues(overlayVisibility = value.toInt())))
             SId.NOTIFICATION_DURATION -> OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(notificationDuration = value.toInt())))
+            SId.FIXED_VISIBILITY -> OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(fixedNotificationsVisibility = value.toInt())))
             SId.DEVICE_NAME -> OverlayStateStore.updateInfoValues(InfoValues(settings = SettingsValues(deviceName = value)))
             SId.REMOTE_PORT -> value.toIntOrNull()?.let { OverlayStateStore.updateInfoValues(InfoValues(settings = SettingsValues(remotePort = it))) }
             else -> {}
@@ -206,6 +210,7 @@ fun SetupScreen(
             SId.CLOCK_VISIBILITY -> DialogState.Slider(id, "Clock Visibility", clockVisibility, 0..100, 5, "%")
             SId.DIMMER -> DialogState.Slider(id, "Screen Dimmer", dimmer, 0..95, 5, "%")
             SId.NOTIFICATION_DURATION -> DialogState.Slider(id, "Duration", duration, 3..30, 1, "s")
+            SId.FIXED_VISIBILITY -> DialogState.Slider(id, "Fixed Visibility", fixedVisibility, 0..100, 5, "%")
             SId.DEVICE_NAME -> DialogState.TextInput(id, "Device Name", deviceName, false)
             SId.REMOTE_PORT -> DialogState.TextInput(id, "Remote Port", port.toString(), true)
             else -> null
@@ -536,6 +541,7 @@ private fun RightPanel(
                 SId.CLOCK_VISIBILITY -> "${infoValues.overlay?.clockOverlayVisibility ?: 0}%"
                 SId.DIMMER -> "${infoValues.overlay?.overlayVisibility ?: 0}%"
                 SId.NOTIFICATION_DURATION -> "${infoValues.notifications?.notificationDuration ?: 8}s"
+                SId.FIXED_VISIBILITY -> "${infoValues.notifications?.fixedNotificationsVisibility ?: 100}%"
                 else -> ""
             },
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
