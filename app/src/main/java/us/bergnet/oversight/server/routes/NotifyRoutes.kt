@@ -1,5 +1,6 @@
 package us.bergnet.oversight.server.routes
 
+import android.content.Context
 import io.ktor.http.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -10,14 +11,31 @@ import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.server.HttpServer
+import us.bergnet.oversight.util.IconResolver
 
-fun Routing.notifyRoutes() {
+fun Routing.notifyRoutes(context: Context) {
     post("/notify") {
         try {
             val body = call.receiveText()
             val notification = HttpServer.json.decodeFromString<ReceivedNotification>(body)
             if (notification.isEmpty()) {
                 call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Empty notification"))
+                return@post
+            }
+            // Validate icon fields
+            val iconError = listOfNotNull(
+                notification.smallIcon?.let { icon ->
+                    if (IconResolver.isMdiIcon(icon)) {
+                        if (!IconResolver.isValidMdiIcon(context, icon)) "Invalid MDI icon name for 'smallIcon': $icon" else null
+                    } else {
+                        "Invalid icon value for 'smallIcon': must start with 'mdi:'"
+                    }
+                },
+                notification.largeIcon?.let { IconResolver.validateIconField(context, "largeIcon", it) },
+                notification.appIcon?.let { IconResolver.validateIconField(context, "appIcon", it) },
+            ).firstOrNull()
+            if (iconError != null) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse.error(iconError))
                 return@post
             }
             OverlayStateStore.enqueueNotification(notification)
@@ -34,6 +52,12 @@ fun Routing.notifyRoutes() {
             val existing = OverlayStateStore.getFixedNotification(notification.id)
             if (existing == null && notification.isEmpty()) {
                 call.respond(HttpStatusCode.BadRequest, ApiResponse.error("New fixed notification requires icon or text"))
+                return@post
+            }
+            // Validate icon field
+            val iconError = notification.icon?.let { IconResolver.validateIconField(context, "icon", it) }
+            if (iconError != null) {
+                call.respond(HttpStatusCode.BadRequest, ApiResponse.error(iconError))
                 return@post
             }
             OverlayStateStore.upsertFixedNotification(notification)
