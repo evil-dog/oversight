@@ -457,6 +457,18 @@ sleep 16
 test_name "Empty notification rejected (no title/message/icon/image)"
 do_post_expect_fail "/notify" '{}'
 
+test_name "smallIcon with invalid MDI name rejected"
+do_post_expect_fail "/notify" '{"title": "Test", "smallIcon": "mdi:not-a-real-icon-xyz"}'
+
+test_name "smallIcon with non-mdi value rejected (must be mdi: only)"
+do_post_expect_fail "/notify" '{"title": "Test", "smallIcon": "https://example.com/icon.png"}'
+
+test_name "largeIcon with invalid MDI name rejected"
+do_post_expect_fail "/notify" '{"title": "Test", "largeIcon": "mdi:not-a-real-icon-xyz"}'
+
+test_name "largeIcon with invalid prefix rejected (not mdi: or http(s)://)"
+do_post_expect_fail "/notify" '{"title": "Test", "largeIcon": "invalid-value"}'
+
 # ---------------------------------------------------------------------------
 # 6. POST /notify_fixed — Fixed notification badges
 # ---------------------------------------------------------------------------
@@ -549,6 +561,12 @@ pause_for_visual "Three badges appear side-by-side next to the clock"
 
 test_name "Empty new badge rejected (no icon or text)"
 do_post_expect_fail "/notify_fixed" '{"id": "empty-test"}'
+
+test_name "Invalid MDI icon name rejected"
+do_post_expect_fail "/notify_fixed" '{"id": "invalid-icon-test", "icon": "mdi:not-a-real-icon-xyz", "text": "Test"}'
+
+test_name "Icon with invalid prefix rejected (not mdi: or http(s)://)"
+do_post_expect_fail "/notify_fixed" '{"id": "invalid-icon-test", "icon": "invalid-value", "text": "Test"}'
 
 # ---------------------------------------------------------------------------
 # 7. GET /fixed_notifications

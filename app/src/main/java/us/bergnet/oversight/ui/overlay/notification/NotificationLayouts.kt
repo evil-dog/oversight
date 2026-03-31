@@ -12,7 +12,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -23,6 +26,15 @@ import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.ui.components.MdiIcon
 import us.bergnet.oversight.util.ColorParser
 import us.bergnet.oversight.util.IconResolver
+
+/** Removes the built-in font padding (ascender/descender gap) that adds extra vertical whitespace. */
+private val tightTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = false),
+    lineHeightStyle = LineHeightStyle(
+        alignment = LineHeightStyle.Alignment.Center,
+        trim = LineHeightStyle.Trim.Both
+    )
+)
 
 @Composable
 fun DefaultNotificationLayout(
@@ -37,9 +49,9 @@ fun DefaultNotificationLayout(
     Row(
         modifier = modifier
             .widthIn(max = layout.maxWidth.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(9.dp))
             .background(bgColor)
-            .padding(12.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -76,14 +88,19 @@ fun DefaultNotificationLayout(
                     }
                 }
             } else if (smallIconName != null) {
-                SmallIconBadge(name = smallIconName, tint = smallIconTint, size = layout.iconSecondarySize)
+                SmallIconBadge(
+                    name = smallIconName,
+                    tint = smallIconTint,
+                    size = layout.iconSecondarySize
+                )
             }
         }
 
         // Text content
         Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
+            modifier = Modifier
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(1.dp)
         ) {
             // Source
             if (layout.sourceDisplay) {
@@ -95,7 +112,8 @@ fun DefaultNotificationLayout(
                         fontSize = (fmt.fontSize ?: 9).sp,
                         fontWeight = fmt.fontWeight?.toFontWeight(),
                         maxLines = fmt.maxLines.coerceAtLeast(1),
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        style = tightTextStyle,
                     )
                 }
             }
@@ -111,7 +129,8 @@ fun DefaultNotificationLayout(
                         fontSize = (fmt.fontSize ?: 12).sp,
                         fontWeight = fmt.fontWeight?.toFontWeight() ?: FontWeight.Bold,
                         maxLines = fmt.maxLines.coerceAtLeast(1),
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        style = tightTextStyle,
                     )
                 }
             }
@@ -126,7 +145,8 @@ fun DefaultNotificationLayout(
                         fontSize = (fmt.fontSize ?: 11).sp,
                         fontWeight = fmt.fontWeight?.toFontWeight(),
                         maxLines = fmt.maxLines.coerceAtLeast(1),
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        style = tightTextStyle,
                     )
                 }
             }
@@ -160,7 +180,7 @@ fun IconOnlyNotificationLayout(
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(bgColor)
             .padding(8.dp),
         contentAlignment = Alignment.Center

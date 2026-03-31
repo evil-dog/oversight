@@ -77,13 +77,17 @@ fun NotificationPopup(
             )
             val hasImage = layout.imageDisplay && !notification.image.isNullOrBlank()
             val hasVideo = !notification.video.isNullOrBlank()
+            val hasMedia = hasImage || hasVideo
 
             Column(
                 modifier = Modifier
                     .padding(8.dp)
                     .width(IntrinsicSize.Max)
-                    .widthIn(max = layout.maxWidth.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .widthIn(
+                        min = if (hasMedia) 240.dp else 0.dp,
+                        max = layout.maxWidth.dp
+                    )
+                    .clip(RoundedCornerShape(9.dp))
                     .background(bgColor),
             ) {
                 // Row 1: Layout content (icon + text)
@@ -92,33 +96,44 @@ fun NotificationPopup(
                     overrideBgColor = Color.Transparent
                 )
 
-                // Row 2: Image or video, full width below the text
-                if (hasImage) {
-                    NotificationImage(
-                        url = notification.image!!,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    )
-                }
-                if (hasVideo) {
-                    NotificationVideo(
-                        url = notification.video!!,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(16f / 9f)
-                            .padding(start = 12.dp, end = 12.dp, bottom = 12.dp)
-                    )
-                }
-
-                // Progress bar: shrinks left-to-right as the timer counts down
                 val barColor = ColorParser.parseOrDefault(layout.progressBarColor, Color(0xFF2196F3))
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(progress.value)
-                        .height(3.dp)
-                        .background(barColor)
-                )
+
+                if (hasMedia) {
+                    // Media + progress bar overlaid at the bottom edge of the media.
+                    // The media goes flush to the card edge; the outer clip rounds its corners.
+                    Box {
+                        if (hasImage) {
+                            NotificationImage(
+                                url = notification.image!!,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (hasVideo) {
+                            NotificationVideo(
+                                url = notification.video!!,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 9f)
+                            )
+                        }
+                        // Progress bar overlaid on the bottom of the media
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress.value)
+                                .height(3.dp)
+                                .align(Alignment.BottomStart)
+                                .background(barColor)
+                        )
+                    }
+                } else {
+                    // No media — progress bar sits below the text at the card bottom
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(progress.value)
+                            .height(3.dp)
+                            .background(barColor)
+                    )
+                }
             }
         }
     }
@@ -154,8 +169,7 @@ fun NotificationImage(
             .crossfade(true)
             .build(),
         contentDescription = null,
-        modifier = modifier
-            .clip(RoundedCornerShape(8.dp)),
+        modifier = modifier,
         contentScale = ContentScale.FillWidth
     )
 }
@@ -244,7 +258,6 @@ fun NotificationVideo(
             }
         },
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
             .background(Color.Black)
     )
 }

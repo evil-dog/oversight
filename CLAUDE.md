@@ -8,6 +8,18 @@ docker run --rm \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
   -v /home/evildog/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
+  -v oversight-gradle-cache:/root/.gradle \
+  mingc/android-build-box \
+  bash -c 'cd /project && ./gradlew assembleDebug'
+```
+
+**Build (clean, use only when needed to fix stale output):**
+```bash
+docker run --rm \
+  -v $(pwd):/project \
+  -v /home/evildog/.android-docker:/root/.android \
+  -v /home/evildog/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
+  -v oversight-gradle-cache:/root/.gradle \
   mingc/android-build-box \
   bash -c 'cd /project && ./gradlew clean assembleDebug'
 ```
