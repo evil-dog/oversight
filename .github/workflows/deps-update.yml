@@ -1,0 +1,118 @@
+name: Monthly Dependency Update
+
+on:
+  schedule:
+    - cron: '0 9 1 * *'  # 1st of each month, 09:00 UTC
+  workflow_dispatch:       # Allow manual trigger for testing
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Check for dependency updates
+        run: ./gradlew dependencyUpdates -DoutputFormatter=json
+
+      - name: Apply updates
+        id: updates
+        run: python3 scripts/update_deps.py
+
+      - name: Create branch and push
+        id: branch
+        if: steps.updates.outputs.updated == 'true'
+        run: |
+          BRANCH="deps/$(date +%Y-%m)"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add app/build.gradle.kts build.gradle.kts
+          git commit -m "chore: update dependencies $(date +%Y-%m)"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "url=https://github.com/${{ github.repository }}/tree/$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Build debug APK to verify
+        id: build
+        if: steps.updates.outputs.updated == 'true'
+        run: ./gradlew assembleDebug
+        continue-on-error: true
+
+      - name: Compose email
+        id: email
+        env:
+          UPDATED: ${{ steps.updates.outputs.updated }}
+          SUMMARY: ${{ steps.updates.outputs.summary }}
+          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          BRANCH_URL: ${{ steps.branch.outputs.url }}
+        run: |
+          MONTH=$(date +%Y-%m)
+          if [[ "$UPDATED" == "true" ]]; then
+            if [[ "$BUILD_OUTCOME" == "success" ]]; then
+              BUILD_STATUS="SUCCESS ✓"
+            else
+              BUILD_STATUS="FAILED ✗"
+            fi
+            SUBJECT="OverSight dependency updates — ${MONTH} — Build: ${BUILD_STATUS}"
+            BODY="Monthly dependency check — ${MONTH}
+
+${SUMMARY}
+
+Build: ${BUILD_STATUS}
+
+Branch: ${BRANCH}
+${BRANCH_URL}
+
+To create a release from this branch:
+  git fetch origin ${BRANCH}
+  git checkout ${BRANCH}
+  git tag vX.Y.Z && git push origin vX.Y.Z"
+          else
+            SUBJECT="OverSight dependencies — all up to date — ${MONTH}"
+            BODY="Monthly dependency check — ${MONTH}
+
+All dependencies are current. No updates available."
+          fi
+          echo "subject=${SUBJECT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<__BODYEOF__"
+            printf '%s' "${BODY}"
+            echo ""
+            echo "__BODYEOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: ${{ steps.email.outputs.subject }}
+          to: ${{ secrets.MAIL_TO }}
+          from: OverSight CI <${{ secrets.MAIL_USERNAME }}>
+          body: ${{ steps.email.outputs.body }}
