@@ -2,6 +2,9 @@
 
 An Android TV application that displays a persistent, configurable overlay for clock display, fixed notification badges, and popup toast notifications. Controlled entirely via a local REST API, with automatic network discovery via mDNS.
 
+[![CI](https://github.com/evil-dog/oversight/actions/workflows/android.yml/badge.svg)](https://github.com/evil-dog/oversight/actions/workflows/android.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 ## Features
 
 - **Clock overlay** — always-on clock with configurable font, color, and opacity
