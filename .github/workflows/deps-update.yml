@@ -82,6 +82,11 @@ jobs:
               "$MONTH" > /tmp/email_body.txt
           fi
           echo "subject=${SUBJECT}" >> "$GITHUB_OUTPUT"
+          {
+            echo "body<<__BODYEOF__"
+            cat /tmp/email_body.txt
+            echo "__BODYEOF__"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Send email
         uses: dawidd6/action-send-mail@v3
@@ -94,4 +99,4 @@ jobs:
           subject: ${{ steps.email.outputs.subject }}
           to: ${{ secrets.MAIL_TO }}
           from: OverSight CI <${{ secrets.MAIL_USERNAME }}>
-          body_filepath: /tmp/email_body.txt
+          body: ${{ steps.email.outputs.body }}
