@@ -3,8 +3,20 @@ name: Android CI
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'app/**'
+      - '*.gradle.kts'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '.github/workflows/android.yml'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'app/**'
+      - '*.gradle.kts'
+      - 'gradle/**'
+      - 'gradle.properties'
+      - '.github/workflows/android.yml'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
