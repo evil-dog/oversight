@@ -57,15 +57,45 @@ jobs:
       - name: Build debug APK to verify
         id: build
         if: steps.updates.outputs.updated == 'true'
-        run: ./gradlew assembleDebug
-        continue-on-error: true
+        run: |
+          set +e
+          ./gradlew assembleDebug 2>&1 | tee /tmp/build.log
+          BUILD_EXIT=${PIPESTATUS[0]}
+
+          if [[ $BUILD_EXIT -eq 0 ]]; then
+            echo "outcome=success" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Check if AGP is requiring a higher compileSdk
+          REQUIRED=$(grep -oP 'Minimum supported compileSdk[^0-9]+\K[0-9]+' /tmp/build.log | head -1)
+          if [[ -z "$REQUIRED" ]]; then
+            REQUIRED=$(grep -oP 'compileSdk needs to be \K[0-9]+' /tmp/build.log | head -1)
+          fi
+
+          if [[ -n "$REQUIRED" ]]; then
+            echo "Bumping compileSdk to $REQUIRED and retrying..."
+            sed -i "s/compileSdk = [0-9]\+/compileSdk = $REQUIRED/" app/build.gradle.kts
+            git add app/build.gradle.kts
+            git commit --amend --no-edit
+            git push origin HEAD --force-with-lease
+            echo "compile_sdk_bump=$REQUIRED" >> "$GITHUB_OUTPUT"
+            if ./gradlew assembleDebug; then
+              echo "outcome=success" >> "$GITHUB_OUTPUT"
+            else
+              echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Compose email
         id: email
         env:
           UPDATED: ${{ steps.updates.outputs.updated }}
           SUMMARY: ${{ steps.updates.outputs.summary }}
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
+          BUILD_OUTCOME: ${{ steps.build.outputs.outcome }}
+          COMPILE_SDK_BUMP: ${{ steps.build.outputs.compile_sdk_bump }}
           BRANCH: ${{ steps.branch.outputs.branch }}
           BRANCH_URL: ${{ steps.branch.outputs.url }}
         run: |
@@ -73,8 +103,10 @@ jobs:
           if [[ "$UPDATED" == "true" ]]; then
             [[ "$BUILD_OUTCOME" == "success" ]] && BUILD_STATUS="SUCCESS ✓" || BUILD_STATUS="FAILED ✗"
             SUBJECT="OverSight dependency updates — ${MONTH} — Build: ${BUILD_STATUS}"
-            printf 'Monthly dependency check — %s\n\n%s\n\nBuild: %s\n\nBranch: %s\n%s\n\nTo create a release from this branch:\n  git fetch origin %s\n  git checkout %s\n  git tag vX.Y.Z && git push origin vX.Y.Z\n' \
-              "$MONTH" "$SUMMARY" "$BUILD_STATUS" "$BRANCH" "$BRANCH_URL" "$BRANCH" "$BRANCH" \
+            EXTRA=""
+            [[ -n "$COMPILE_SDK_BUMP" ]] && EXTRA="\n\nNote: compileSdk was automatically bumped to $COMPILE_SDK_BUMP."
+            printf "Monthly dependency check — %s\n\n%s%s\n\nBuild: %s\n\nBranch: %s\n%s\n\nTo create a release from this branch:\n  git fetch origin %s\n  git checkout %s\n  git tag vX.Y.Z && git push origin vX.Y.Z\n" \
+              "$MONTH" "$SUMMARY" "$EXTRA" "$BUILD_STATUS" "$BRANCH" "$BRANCH_URL" "$BRANCH" "$BRANCH" \
               > /tmp/email_body.txt
           else
             SUBJECT="OverSight dependencies — all up to date — ${MONTH}"
