@@ -71,38 +71,17 @@ jobs:
         run: |
           MONTH=$(date +%Y-%m)
           if [[ "$UPDATED" == "true" ]]; then
-            if [[ "$BUILD_OUTCOME" == "success" ]]; then
-              BUILD_STATUS="SUCCESS ✓"
-            else
-              BUILD_STATUS="FAILED ✗"
-            fi
+            [[ "$BUILD_OUTCOME" == "success" ]] && BUILD_STATUS="SUCCESS ✓" || BUILD_STATUS="FAILED ✗"
             SUBJECT="OverSight dependency updates — ${MONTH} — Build: ${BUILD_STATUS}"
-            BODY="Monthly dependency check — ${MONTH}
-
-${SUMMARY}
-
-Build: ${BUILD_STATUS}
-
-Branch: ${BRANCH}
-${BRANCH_URL}
-
-To create a release from this branch:
-  git fetch origin ${BRANCH}
-  git checkout ${BRANCH}
-  git tag vX.Y.Z && git push origin vX.Y.Z"
+            printf 'Monthly dependency check — %s\n\n%s\n\nBuild: %s\n\nBranch: %s\n%s\n\nTo create a release from this branch:\n  git fetch origin %s\n  git checkout %s\n  git tag vX.Y.Z && git push origin vX.Y.Z\n' \
+              "$MONTH" "$SUMMARY" "$BUILD_STATUS" "$BRANCH" "$BRANCH_URL" "$BRANCH" "$BRANCH" \
+              > /tmp/email_body.txt
           else
             SUBJECT="OverSight dependencies — all up to date — ${MONTH}"
-            BODY="Monthly dependency check — ${MONTH}
-
-All dependencies are current. No updates available."
+            printf 'Monthly dependency check — %s\n\nAll dependencies are current. No updates available.\n' \
+              "$MONTH" > /tmp/email_body.txt
           fi
           echo "subject=${SUBJECT}" >> "$GITHUB_OUTPUT"
-          {
-            echo "body<<__BODYEOF__"
-            printf '%s' "${BODY}"
-            echo ""
-            echo "__BODYEOF__"
-          } >> "$GITHUB_OUTPUT"
 
       - name: Send email
         uses: dawidd6/action-send-mail@v3
@@ -115,4 +94,4 @@ All dependencies are current. No updates available."
           subject: ${{ steps.email.outputs.subject }}
           to: ${{ secrets.MAIL_TO }}
           from: OverSight CI <${{ secrets.MAIL_USERNAME }}>
-          body: ${{ steps.email.outputs.body }}
+          body_filepath: /tmp/email_body.txt
