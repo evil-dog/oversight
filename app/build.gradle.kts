@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
@@ -15,7 +14,7 @@ val computedVersionCode = releaseVersion
 
 android {
     namespace = "us.bergnet.oversight"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "us.bergnet.oversight"
@@ -48,10 +47,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-
-    kotlinOptions {
-        jvmTarget = "17"
     }
 
     buildFeatures {
