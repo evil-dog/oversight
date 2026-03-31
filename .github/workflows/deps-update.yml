@@ -48,7 +48,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git checkout -b "$BRANCH"
-          git add app/build.gradle.kts build.gradle.kts
+          git add app/build.gradle.kts build.gradle.kts gradle/wrapper/gradle-wrapper.properties
           git commit -m "chore: update dependencies $(date +%Y-%m)"
           git push origin "$BRANCH"
           echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"

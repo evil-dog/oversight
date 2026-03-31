@@ -15,6 +15,7 @@ from pathlib import Path
 
 REPORT = Path("build/dependencyUpdates/report.json")
 GRADLE_FILES = [Path("app/build.gradle.kts"), Path("build.gradle.kts")]
+GRADLE_WRAPPER = Path("gradle/wrapper/gradle-wrapper.properties")
 
 UNSTABLE_KEYWORDS = ["alpha", "beta", "rc", "cr", "preview", "snapshot", "dev", "ea"]
 
@@ -81,6 +82,32 @@ def write_multiline_output(key: str, value: str, dest: str) -> None:
         f.write(f"{key}<<__EOF__\n{value}\n__EOF__\n")
 
 
+def apply_gradle_wrapper_update(report: dict) -> tuple | None:
+    """Update gradle-wrapper.properties if a newer Gradle version is reported. Returns update tuple or None."""
+    gradle_info = report.get("gradle", {})
+    if not gradle_info.get("enabled"):
+        return None
+
+    running = (gradle_info.get("running") or {}).get("version")
+    new_ver = (gradle_info.get("current") or gradle_info.get("release") or {}).get("version")
+
+    if not running or not new_ver or running == new_ver or not is_stable(new_ver):
+        return None
+
+    if not GRADLE_WRAPPER.exists():
+        return None
+
+    content = GRADLE_WRAPPER.read_text()
+    old_url = f"gradle-{running}-bin.zip"
+    new_url = f"gradle-{new_ver}-bin.zip"
+
+    if old_url not in content:
+        return None
+
+    GRADLE_WRAPPER.write_text(content.replace(old_url, new_url))
+    return ("Gradle wrapper", running, new_ver, False)
+
+
 def main():
     gh_output = os.environ.get("GITHUB_OUTPUT", "/dev/stdout")
 
@@ -91,6 +118,10 @@ def main():
     report = json.loads(REPORT.read_text())
     deps = report.get("outdated", {}).get("dependencies", [])
     updates = apply_updates(deps)
+
+    wrapper_update = apply_gradle_wrapper_update(report)
+    if wrapper_update:
+        updates.append(wrapper_update)
 
     if not updates:
         print("No stable dependency updates found.")
