@@ -5,6 +5,14 @@ plugins {
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
+// Version driven by RELEASE_VERSION env var in CI (set from git tag); falls back to defaults locally.
+val releaseVersion: String? = System.getenv("RELEASE_VERSION")
+val computedVersionCode = releaseVersion
+    ?.split(".")?.mapNotNull { it.toIntOrNull() }
+    ?.takeIf { it.size == 3 }
+    ?.let { (ma, mi, pa) -> ma * 10000 + mi * 100 + pa }
+    ?: 1
+
 android {
     namespace = "us.bergnet.oversight"
     compileSdk = 35
@@ -13,13 +21,26 @@ android {
         applicationId = "us.bergnet.oversight"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = computedVersionCode
+        versionName = releaseVersion ?: "1.0.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("SIGNING_KEYSTORE_PATH") ?: "keystore-missing.jks")
+            storePassword = System.getenv("SIGNING_STORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("SIGNING_KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("SIGNING_KEY_PASSWORD") ?: ""
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = if (System.getenv("SIGNING_KEYSTORE_PATH") != null)
+                signingConfigs.getByName("release")
+            else
+                signingConfigs.getByName("debug")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
