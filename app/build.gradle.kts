@@ -68,7 +68,7 @@ android {
 
 dependencies {
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2026.03.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.05.01")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
@@ -79,16 +79,16 @@ dependencies {
 
     // TV Compose
     implementation("androidx.tv:tv-foundation:1.0.0-alpha11")
-    implementation("androidx.tv:tv-material:1.0.1")
+    implementation("androidx.tv:tv-material:1.1.0")
 
     // Ktor Server
-    implementation("io.ktor:ktor-server-netty:3.4.2")
-    implementation("io.ktor:ktor-server-content-negotiation:3.4.2")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.4.2")
-    implementation("io.ktor:ktor-server-cors:3.4.2")
+    implementation("io.ktor:ktor-server-netty:3.5.0")
+    implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
+    implementation("io.ktor:ktor-server-cors:3.5.0")
 
     // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.10.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
     // Icons (MDI via mikepenz Iconics)
     implementation("com.mikepenz:iconics-core:5.5.0")
@@ -98,11 +98,11 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Video (Media3/ExoPlayer)
-    implementation("androidx.media3:media3-exoplayer:1.10.0")
-    implementation("androidx.media3:media3-exoplayer-hls:1.10.0")
-    implementation("androidx.media3:media3-exoplayer-dash:1.10.0")
-    implementation("androidx.media3:media3-exoplayer-rtsp:1.10.0")
-    implementation("androidx.media3:media3-ui:1.10.0")
+    implementation("androidx.media3:media3-exoplayer:1.10.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.10.1")
+    implementation("androidx.media3:media3-exoplayer-rtsp:1.10.1")
+    implementation("androidx.media3:media3-ui:1.10.1")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.2.1")
@@ -113,5 +113,5 @@ dependencies {
     implementation("androidx.leanback:leanback:1.2.0")
 
     // Coroutines
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
 }
