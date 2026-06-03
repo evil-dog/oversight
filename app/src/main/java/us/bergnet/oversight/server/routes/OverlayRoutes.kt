@@ -30,7 +30,7 @@ fun Routing.overlayRoutes() {
             )
             call.respond(ApiResponse.success("Overlay customization updated", json))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 }

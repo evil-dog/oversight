@@ -50,17 +50,7 @@ fun Routing.layoutRoutes() {
         try {
             val body = call.receiveText()
             val layout = HttpServer.json.decodeFromString<NotificationLayout>(body)
-            val current = OverlayStateStore.layoutList.value
-            val newList = current.list.toMutableList()
-            val existing = newList.indexOfFirst { it.name == layout.name }
-            if (existing >= 0) {
-                newList[existing] = layout
-            } else {
-                newList.add(layout)
-            }
-            OverlayStateStore.setLayoutList(
-                current.copy(list = newList, selected = layout.name)
-            )
+            OverlayStateStore.upsertLayout(layout, select = true)
             OverlayStateStore.updateInfoValues(
                 InfoValues(notifications = NotificationValues(notificationLayoutName = layout.name))
             )
@@ -70,7 +60,7 @@ fun Routing.layoutRoutes() {
             )
             call.respond(ApiResponse.success("Layout set", json))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 
@@ -83,24 +73,14 @@ fun Routing.layoutRoutes() {
         try {
             val body = call.receiveText()
             val layout = HttpServer.json.decodeFromString<NotificationLayout>(body)
-            val current = OverlayStateStore.layoutList.value
-            val newList = current.list.toMutableList()
-            val existing = newList.indexOfFirst { it.name == layout.name }
-            if (existing >= 0) {
-                newList[existing] = layout
-            } else {
-                newList.add(layout)
-            }
-            OverlayStateStore.setLayoutList(
-                current.copy(list = newList, selected = layout.name)
-            )
+            OverlayStateStore.upsertLayout(layout, select = true)
             val json = HttpServer.json.encodeToJsonElement(
                 NotificationLayoutList.serializer(),
                 OverlayStateStore.layoutList.value
             )
             call.respond(ApiResponse.success("Layout set", json))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 }

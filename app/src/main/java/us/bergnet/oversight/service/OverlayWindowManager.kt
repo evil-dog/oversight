@@ -17,12 +17,15 @@ import androidx.savedstate.SavedStateRegistryController
 import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class OverlayWindowManager(private val context: Context) {
 
     private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
     private var composeView: ComposeView? = null
+    private var recomposer: Recomposer? = null
+    private var recomposerScope: CoroutineScope? = null
 
     private val lifecycleOwner = OverlayLifecycleOwner()
 
@@ -60,12 +63,14 @@ class OverlayWindowManager(private val context: Context) {
         // Set up recomposer
         val coroutineContext = AndroidUiDispatcher.CurrentThread
         val scope = CoroutineScope(coroutineContext)
-        val recomposer = Recomposer(coroutineContext)
-        view.compositionContext = recomposer
-        scope.launch { recomposer.runRecomposeAndApplyChanges() }
+        val newRecomposer = Recomposer(coroutineContext)
+        view.compositionContext = newRecomposer
+        scope.launch { newRecomposer.runRecomposeAndApplyChanges() }
 
         windowManager.addView(view, params)
         composeView = view
+        recomposer = newRecomposer
+        recomposerScope = scope
     }
 
     fun dismiss() {
@@ -75,6 +80,10 @@ class OverlayWindowManager(private val context: Context) {
             lifecycleOwner.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
             windowManager.removeView(it)
         }
+        recomposer?.cancel()
+        recomposerScope?.cancel()
+        recomposer = null
+        recomposerScope = null
         composeView = null
     }
 

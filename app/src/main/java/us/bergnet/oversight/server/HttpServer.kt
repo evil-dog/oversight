@@ -30,6 +30,10 @@ class HttpServer(
     private var server: EmbeddedServer<NettyApplicationEngine, NettyApplicationEngine.Configuration>? = null
 
     fun start() {
+        if (server != null) {
+            Log.w(TAG, "HTTP server already running, ignoring start()")
+            return
+        }
         try {
             server = embeddedServer(Netty, port = port) {
                 install(ContentNegotiation) {

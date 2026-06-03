@@ -4,21 +4,21 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class NotificationLayout(
-    var name: String = "Default",
-    var imageDisplay: Boolean = true,
-    var imageSmall: Boolean = false,
-    var titleDisplay: Boolean = true,
+    val name: String = "Default",
+    val imageDisplay: Boolean = true,
+    val imageSmall: Boolean = false,
+    val titleDisplay: Boolean = true,
     val titleFormat: NotificationTextFormat = NotificationTextFormat.TITLE_DEFAULT,
-    var sourceDisplay: Boolean = true,
+    val sourceDisplay: Boolean = true,
     val sourceFormat: NotificationTextFormat = NotificationTextFormat.SOURCE_DEFAULT,
-    var messageDisplay: Boolean = true,
+    val messageDisplay: Boolean = true,
     val messageFormat: NotificationTextFormat = NotificationTextFormat.MESSAGE_DEFAULT,
-    var iconDisplay: Boolean = true,
+    val iconDisplay: Boolean = true,
     val iconSize: Float = 40f,
-    var iconSecondaryDisplay: Boolean = true,
+    val iconSecondaryDisplay: Boolean = true,
     val iconSecondarySize: Float = 20f,
     val maxWidth: Float = 260f,
-    var backgroundColor: String = "#66000000",
+    val backgroundColor: String = "#66000000",
     val progressBarColor: String = "#2196F3"
 ) {
     companion object {

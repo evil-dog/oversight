@@ -39,7 +39,7 @@ fun Routing.settingsRoutes() {
             )
             call.respond(ApiResponse.success("Overlay settings updated", result))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 
@@ -54,7 +54,7 @@ fun Routing.settingsRoutes() {
             )
             call.respond(ApiResponse.success("Notification settings updated", result))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 
@@ -69,7 +69,7 @@ fun Routing.settingsRoutes() {
             )
             call.respond(ApiResponse.success("Settings updated", result))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 }

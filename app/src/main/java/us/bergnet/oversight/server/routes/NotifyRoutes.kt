@@ -40,7 +40,7 @@ fun Routing.notifyRoutes() {
             OverlayStateStore.enqueueNotification(notification)
             call.respond(ApiResponse.success("Notification received"))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 
@@ -62,7 +62,7 @@ fun Routing.notifyRoutes() {
             OverlayStateStore.upsertFixedNotification(notification)
             call.respond(ApiResponse.success("Fixed notification received"))
         } catch (e: Exception) {
-            call.respond(HttpStatusCode.BadRequest, ApiResponse.error("Invalid request: ${e.message}"))
+            call.respondError(e)
         }
     }
 

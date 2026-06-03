@@ -5,6 +5,7 @@ import us.bergnet.oversight.data.model.enums.HotCorner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 object OverlayStateStore {
     // Configuration
@@ -83,7 +84,7 @@ object OverlayStateStore {
     // --- Mutators ---
 
     fun updateInfoValues(new: InfoValues) {
-        _infoValues.value = _infoValues.value.merge(new)
+        _infoValues.update { it.merge(new) }
     }
 
     fun setInfoValues(values: InfoValues) {
@@ -103,36 +104,32 @@ object OverlayStateStore {
     }
 
     fun upsertFixedNotification(notification: FixedNotification) {
-        val current = _fixedNotifications.value.toMutableList()
-        val index = current.indexOfFirst { it.id == notification.id }
-        val merged = if (index >= 0) {
-            // Merge: existing values kept for null incoming fields
-            current[index].mergeWith(notification)
-        } else {
-            notification
+        _fixedNotifications.update { current ->
+            val index = current.indexOfFirst { it.id == notification.id }
+            val merged = if (index >= 0) {
+                // Merge: existing values kept for null incoming fields
+                current[index].mergeWith(notification)
+            } else {
+                notification
+            }
+            val withTime = merged.withReceivedTime()
+            val next = current.toMutableList()
+            if (index >= 0) next[index] = withTime else next.add(withTime)
+            next.filter { !it.isExpired() }
         }
-        val withTime = merged.withReceivedTime()
-        if (index >= 0) {
-            current[index] = withTime
-        } else {
-            current.add(withTime)
-        }
-        // Remove expired
-        _fixedNotifications.value = current.filter { !it.isExpired() }
     }
 
     fun getFixedNotification(id: String): FixedNotification? =
         _fixedNotifications.value.firstOrNull { it.id == id }
 
     fun removeFixedNotification(id: String) {
-        _fixedNotifications.value = _fixedNotifications.value.filter { it.id != id }
+        _fixedNotifications.update { current -> current.filter { it.id != id } }
     }
 
     fun removeExpiredFixedNotifications() {
-        val current = _fixedNotifications.value
-        val filtered = current.filter { !it.isExpired() }
-        if (filtered.size != current.size) {
-            _fixedNotifications.value = filtered
+        _fixedNotifications.update { current ->
+            val filtered = current.filter { !it.isExpired() }
+            if (filtered.size == current.size) current else filtered
         }
     }
 
@@ -143,27 +140,35 @@ object OverlayStateStore {
         if (notification.isEmpty()) return
         if (!isDisplayNotifications()) return
 
-        val current = _currentNotification.value
-        if (current == null) {
-            _currentNotification.value = notification
-        } else if (current.id == notification.id && current.source == notification.source) {
-            // Update in place for same id+source
-            _currentNotification.value = notification
-        } else {
-            val queue = _notificationQueue.value.toMutableList()
-            queue.add(notification)
-            _notificationQueue.value = queue
+        // Atomically decide whether this replaces the current notification or appends to the queue.
+        // Done as a single update on _currentNotification (the discriminator) so we don't race
+        // between reading current and writing the queue.
+        var enqueue = false
+        _currentNotification.update { current ->
+            if (current == null || (current.id == notification.id && current.source == notification.source)) {
+                notification
+            } else {
+                enqueue = true
+                current
+            }
+        }
+        if (enqueue) {
+            _notificationQueue.update { it + notification }
         }
     }
 
     fun dismissCurrentNotification() {
-        val queue = _notificationQueue.value.toMutableList()
-        if (queue.isNotEmpty()) {
-            _currentNotification.value = queue.removeFirst()
-            _notificationQueue.value = queue
-        } else {
-            _currentNotification.value = null
+        // Pop the head of the queue (if any) into current, atomically.
+        var next: ReceivedNotification? = null
+        _notificationQueue.update { queue ->
+            if (queue.isEmpty()) {
+                queue
+            } else {
+                next = queue.first()
+                queue.drop(1)
+            }
         }
+        _currentNotification.value = next
     }
 
     fun setScreenOn(on: Boolean) {
@@ -180,6 +185,15 @@ object OverlayStateStore {
 
     fun setLayoutList(list: NotificationLayoutList) {
         _layoutList.value = list
+    }
+
+    fun upsertLayout(layout: NotificationLayout, select: Boolean) {
+        _layoutList.update { current ->
+            val next = current.list.toMutableList()
+            val idx = next.indexOfFirst { it.name == layout.name }
+            if (idx >= 0) next[idx] = layout else next.add(layout)
+            current.copy(list = next, selected = if (select) layout.name else current.selected)
+        }
     }
 
     fun getCurrentLayoutName(): String =

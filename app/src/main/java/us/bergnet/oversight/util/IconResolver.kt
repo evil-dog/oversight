@@ -1,8 +1,13 @@
 package us.bergnet.oversight.util
 
 import com.mikepenz.iconics.typeface.library.community.material.CommunityMaterial
+import java.util.concurrent.ConcurrentHashMap
 
 object IconResolver {
+    // CommunityMaterial.getIcon iterates the Icon, Icon2, Icon3 enums and throws on miss; both the
+    // iteration and the exception are expensive, and the same names recur per /notify request.
+    private val validationCache = ConcurrentHashMap<String, Boolean>()
+
     fun isMdiIcon(name: String?): Boolean {
         return name?.startsWith("mdi:") == true
     }
@@ -11,18 +16,15 @@ object IconResolver {
         return name.removePrefix("mdi:")
     }
 
-    /**
-     * Returns true if the MDI icon name maps to a real icon in the Community Material font.
-     * CommunityMaterial.getIcon() iterates all Icon enums (Icon, Icon2, Icon3) and throws
-     * IllegalArgumentException if the icon name is not found.
-     */
     fun isValidMdiIcon(name: String): Boolean {
-        val stripped = name.removePrefix("mdi:").replace("-", "_")
-        return try {
-            CommunityMaterial.getIcon("cmd_$stripped")
-            true
-        } catch (e: Exception) {
-            false
+        return validationCache.getOrPut(name) {
+            val stripped = name.removePrefix("mdi:").replace("-", "_")
+            try {
+                CommunityMaterial.getIcon("cmd_$stripped")
+                true
+            } catch (e: Exception) {
+                false
+            }
         }
     }
 
