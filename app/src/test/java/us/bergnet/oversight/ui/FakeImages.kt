@@ -7,12 +7,14 @@ import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
 import android.graphics.drawable.BitmapDrawable
-import coil.Coil
-import coil.ImageLoader
-import coil.decode.DataSource
-import coil.intercept.Interceptor
-import coil.request.ImageResult
-import coil.request.SuccessResult
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.asImage
+import coil3.decode.DataSource
+import coil3.intercept.Interceptor
+import coil3.request.ImageResult
+import coil3.request.SuccessResult
+import coil3.request.crossfade
 import kotlinx.coroutines.Dispatchers
 
 /**
@@ -22,11 +24,11 @@ import kotlinx.coroutines.Dispatchers
  */
 object FakeImages {
     fun install(context: Context) {
-        Coil.setImageLoader(
+        SingletonImageLoader.setUnsafe(
             ImageLoader.Builder(context)
                 .components { add(FakeImageInterceptor(context)) }
                 // Resolve synchronously so a single mainClock advance shows the loaded image
-                .dispatcher(Dispatchers.Main.immediate)
+                .coroutineContext(Dispatchers.Main.immediate)
                 .crossfade(false)
                 .build()
         )
@@ -42,7 +44,7 @@ object FakeImages {
                 else -> 1280 to 720
             }
             return SuccessResult(
-                drawable = BitmapDrawable(context.resources, scene(w, h)),
+                image = BitmapDrawable(context.resources, scene(w, h)).asImage(),
                 request = chain.request,
                 // MEMORY_CACHE makes Coil skip crossfade; its animation runs on the system clock,
                 // which Robolectric freezes, so crossfaded images would stay invisible

@@ -14,6 +14,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import us.bergnet.oversight.data.model.FixedNotification
+import us.bergnet.oversight.data.model.NotificationLayout
+import us.bergnet.oversight.data.model.OverlayCustomization
+import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.ui.overlay.notification.FixedNotificationBadge
@@ -29,18 +32,15 @@ fun OverlayContent() {
     val currentNotification by OverlayStateStore.currentNotification.collectAsState()
     val layoutList by OverlayStateStore.layoutList.collectAsState()
 
-    val overlayVisibility = infoValues.overlay?.overlayVisibility ?: 0
-    val clockVisibility = infoValues.overlay?.clockOverlayVisibility ?: 0
-    val displayNotifications = infoValues.notifications?.displayNotifications ?: true
-    val displayFixedNotifications = infoValues.notifications?.displayFixedNotifications ?: true
-    val hotCornerName = infoValues.overlay?.hotCorner ?: "top_end"
-    val hotCorner = HotCorner.fromRestApiName(hotCornerName)
-    val notificationDuration = infoValues.notifications?.notificationDuration ?: 8
+    val settings = infoValues.effective()
+    val overlayVisibility = settings.overlayVisibility
+    val clockVisibility = settings.clockVisibility
+    val displayNotifications = settings.displayNotifications
+    val hotCorner = settings.hotCorner
+    val notificationDuration = settings.notificationDuration
 
-    val currentLayout = remember(layoutList, infoValues.notifications?.notificationLayoutName) {
-        val name = infoValues.notifications?.notificationLayoutName ?: layoutList.selected
-        layoutList.list.firstOrNull { it.name == name }
-            ?: us.bergnet.oversight.data.model.NotificationLayout.DEFAULT
+    val currentLayout = remember(layoutList, settings.notificationLayoutName) {
+        layoutList.resolve(settings.notificationLayoutName)
     }
 
     val isBottom = hotCorner == HotCorner.BOTTOM_START || hotCorner == HotCorner.BOTTOM_END
@@ -50,9 +50,9 @@ fun OverlayContent() {
     val toastCorner = currentNotification?.corner ?: hotCorner
     val toastAtHotCorner = toastCorner == hotCorner
 
-    val fixedNotificationsAlpha = (infoValues.notifications?.fixedNotificationsVisibility ?: 100) / 100f
+    val fixedNotificationsAlpha = settings.fixedNotificationsVisibility / 100f
 
-    val activeFixed = if (displayFixedNotifications) {
+    val activeFixed = if (settings.displayFixedNotifications) {
         fixedNotifications.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
     } else {
         emptyList()
@@ -77,21 +77,20 @@ fun OverlayContent() {
     }
 
     // Pixel shift: small random offset every 60s to prevent burn-in
-    val pixelShift = infoValues.settings?.pixelShift ?: false
     var shiftX by remember { mutableStateOf(0.dp) }
     var shiftY by remember { mutableStateOf(0.dp) }
 
-    if (pixelShift) {
-        LaunchedEffect(Unit) {
-            while (true) {
-                shiftX = Random.nextInt(-6, 7).dp
-                shiftY = Random.nextInt(-6, 7).dp
-                delay(60_000L)
-            }
+    LaunchedEffect(settings.pixelShift) {
+        if (!settings.pixelShift) {
+            shiftX = 0.dp
+            shiftY = 0.dp
+            return@LaunchedEffect
         }
-    } else {
-        shiftX = 0.dp
-        shiftY = 0.dp
+        while (true) {
+            shiftX = Random.nextInt(-6, 7).dp
+            shiftY = Random.nextInt(-6, 7).dp
+            delay(60_000L)
+        }
     }
 
     val animatedShiftX by animateDpAsState(shiftX, tween(2000), label = "shiftX")
@@ -189,7 +188,7 @@ private class AnimatedFixedItem(
 private fun ClockFixedRow(
     hotCorner: HotCorner,
     clockVisibility: Int,
-    overlayCustomization: us.bergnet.oversight.data.model.OverlayCustomization,
+    overlayCustomization: OverlayCustomization,
     clockTextFormat: String?,
     activeFixed: List<FixedNotification>,
     fixedAlpha: Float = 1f
@@ -238,53 +237,36 @@ private fun ClockFixedRow(
 
     val renderItems = if (hotCorner.isStart()) trackedItems.toList() else trackedItems.reversed()
 
+    val clock: @Composable () -> Unit = {
+        if (showClock) {
+            ClockOverlay(
+                customization = overlayCustomization.toNonNullable(),
+                clockTextFormat = clockTextFormat,
+                visibilityPercent = clockVisibility
+            )
+        }
+    }
+
+    // The clock sits nearest the screen corner: first in the row at a start corner, last at an end corner
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        if (hotCorner.isStart()) {
-            if (showClock) {
-                ClockOverlay(
-                    customization = overlayCustomization.toNonNullable(),
-                    clockTextFormat = clockTextFormat,
-                    visibilityPercent = clockVisibility
-                )
-            }
-            renderItems.forEach { item ->
-                key(item.notification.id) {
-                    AnimatedVisibility(
-                        visibleState = item.visibleState,
-                        enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
-                        exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
-                    ) {
-                        Box(modifier = Modifier.alpha(fixedAlpha)) {
-                            CollapsibleBadge(notification = item.notification)
-                        }
+        if (hotCorner.isStart()) clock()
+        renderItems.forEach { item ->
+            key(item.notification.id) {
+                AnimatedVisibility(
+                    visibleState = item.visibleState,
+                    enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
+                    exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
+                ) {
+                    Box(modifier = Modifier.alpha(fixedAlpha)) {
+                        CollapsibleBadge(notification = item.notification)
                     }
                 }
-            }
-        } else {
-            renderItems.forEach { item ->
-                key(item.notification.id) {
-                    AnimatedVisibility(
-                        visibleState = item.visibleState,
-                        enter = expandHorizontally(expandFrom = expandFrom) + fadeIn(),
-                        exit = shrinkHorizontally(shrinkTowards = expandFrom) + fadeOut()
-                    ) {
-                        Box(modifier = Modifier.alpha(fixedAlpha)) {
-                            CollapsibleBadge(notification = item.notification)
-                        }
-                    }
-                }
-            }
-            if (showClock) {
-                ClockOverlay(
-                    customization = overlayCustomization.toNonNullable(),
-                    clockTextFormat = clockTextFormat,
-                    visibilityPercent = clockVisibility
-                )
             }
         }
+        if (!hotCorner.isStart()) clock()
     }
 }
 
@@ -312,7 +294,7 @@ private fun CollapsibleBadge(notification: FixedNotification) {
             collapsed = false
             while (true) {
                 // Show text for showDuration seconds
-                delay(showDuration!!.toLong() * 1000)
+                delay(showDuration.toLong() * 1000)
                 collapsed = true
 
                 if (repeatExpand && collapseDuration != null) {
@@ -338,8 +320,8 @@ private fun CollapsibleBadge(notification: FixedNotification) {
 @Composable
 private fun ToastSection(
     displayNotifications: Boolean,
-    currentNotification: us.bergnet.oversight.data.model.ReceivedNotification?,
-    currentLayout: us.bergnet.oversight.data.model.NotificationLayout,
+    currentNotification: ReceivedNotification?,
+    currentLayout: NotificationLayout,
     notificationDuration: Int,
     corner: HotCorner
 ) {

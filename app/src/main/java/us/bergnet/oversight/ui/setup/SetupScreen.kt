@@ -67,18 +67,7 @@ import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.ui.components.MdiIcon
 import us.bergnet.oversight.util.NetworkUtils
-
-// --- Colors ---
-private val BgColor = Color(0xFF1A1A2E)
-private val PanelBg = Color(0xFF12122A)
-private val ItemFocused = Color(0xFF2A2A4E)
-private val Accent = Color(0xFF6C63FF)
-private val Green = Color(0xFF4CAF50)
-private val Red = Color(0xFFFF5252)
-private val Orange = Color(0xFFFF9800)
-private val TextPrimary = Color.White
-private val TextSecondary = Color(0xFFB0B0B0)
-private val TextMuted = Color(0xFF666688)
+import us.bergnet.oversight.ui.theme.*
 
 private enum class SId {
     ABOUT,
@@ -154,10 +143,11 @@ fun SetupScreen(
     onStopService: () -> Unit,
     onRestartService: () -> Unit,
     onClearFixedNotifications: () -> Unit,
-    appVersion: String = "1.0.0"
+    appVersion: String
 ) {
     val infoValues by OverlayStateStore.infoValues.collectAsState()
     val isRunning by OverlayStateStore.isServiceRunning.collectAsState()
+    val mdnsRegistered by OverlayStateStore.isMdnsRegistered.collectAsState()
     val deviceId by OverlayStateStore.deviceId.collectAsState()
 
     var selectedItem by remember { mutableStateOf(SId.ABOUT) }
@@ -172,22 +162,22 @@ fun SetupScreen(
     val leftFocusMap = remember { SId.entries.associateWith { FocusRequester() } }
 
     // Clock overlap padding
-    val hotCorner = HotCorner.fromRestApiName(infoValues.overlay?.hotCorner ?: "top_end")
-    val clockVis = infoValues.overlay?.clockOverlayVisibility ?: 0
-    val clockAtTop = hotCorner == HotCorner.TOP_START || hotCorner == HotCorner.TOP_END
-    val topPad = if (clockAtTop && clockVis > 0) 48.dp else 0.dp
-
     // Current values
-    val deviceName = infoValues.settings?.deviceName ?: "OverSight Device"
-    val port = infoValues.settings?.remotePort ?: 5001
+    val settings = infoValues.effective()
+    val hotCorner = settings.hotCorner
+    val clockAtTop = hotCorner == HotCorner.TOP_START || hotCorner == HotCorner.TOP_END
+    val topPad = if (clockAtTop && settings.clockVisibility > 0) 48.dp else 0.dp
+
+    val deviceName = settings.deviceName
+    val port = settings.remotePort
     val cornerIdx = cornerValues.indexOf(hotCorner).coerceAtLeast(0)
-    val clockVisibility = infoValues.overlay?.clockOverlayVisibility ?: 0
-    val dimmer = infoValues.overlay?.overlayVisibility ?: 0
-    val pixelShift = infoValues.settings?.pixelShift ?: false
-    val displayNotifs = infoValues.notifications?.displayNotifications ?: true
-    val duration = infoValues.notifications?.notificationDuration ?: 8
-    val displayFixed = infoValues.notifications?.displayFixedNotifications ?: true
-    val fixedVisibility = infoValues.notifications?.fixedNotificationsVisibility ?: 100
+    val clockVisibility = settings.clockVisibility
+    val dimmer = settings.overlayVisibility
+    val pixelShift = settings.pixelShift
+    val displayNotifs = settings.displayNotifications
+    val duration = settings.notificationDuration
+    val displayFixed = settings.displayFixedNotifications
+    val fixedVisibility = settings.fixedNotificationsVisibility
     val ip = remember { NetworkUtils.getDeviceIpAddress() ?: "Unknown" }
 
     fun applyValue(id: SId, value: String) {
@@ -244,7 +234,7 @@ fun SetupScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(BgColor)) {
+    Box(modifier = Modifier.fillMaxSize().background(Background)) {
         Row(modifier = Modifier.fillMaxSize().padding(top = topPad)) {
             // Left panel
             Box(modifier = Modifier.weight(0.28f).fillMaxHeight().background(PanelBg)) {
@@ -285,7 +275,8 @@ fun SetupScreen(
             ) {
                 RightPanel(
                     selectedItem = selectedItem,
-                    infoValues = infoValues, isRunning = isRunning, deviceId = deviceId, ip = ip,
+                    infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered,
+                    deviceId = deviceId, ip = ip,
                     hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
                     appVersion = appVersion, rightFocus = rightFocus, enabled = leftActive,
                     onNavigateLeft = { try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {} },
@@ -424,7 +415,7 @@ private fun LeftMenuItem(
     var focused by remember { mutableStateOf(false) }
     val bgColor by animateColorAsState(
         when {
-            focused -> ItemFocused
+            focused -> Surface
             isSelected -> Color(0xFF1E1E3A)
             else -> Color.Transparent
         }, label = "leftBg"
@@ -469,8 +460,8 @@ private fun LeftMenuItem(
 @Composable
 private fun RightPanel(
     selectedItem: SId,
-    infoValues: us.bergnet.oversight.data.model.InfoValues,
-    isRunning: Boolean, deviceId: String, ip: String,
+    infoValues: InfoValues,
+    isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     onNavigateLeft: () -> Unit,
@@ -479,6 +470,8 @@ private fun RightPanel(
     onStartService: () -> Unit, onStopService: () -> Unit,
     onRestartService: () -> Unit, onClearFixedNotifications: () -> Unit
 ) {
+    val settings = infoValues.effective()
+
     // Shared modifier: d-pad left AND back both return to left panel
     val backToLeft = Modifier.onPreviewKeyEvent { event ->
         if (event.type == KeyEventType.KeyDown &&
@@ -489,7 +482,7 @@ private fun RightPanel(
 
     when (selectedItem) {
         SId.ABOUT -> AboutDetail(
-            infoValues = infoValues, isRunning = isRunning, deviceId = deviceId, ip = ip,
+            infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered, deviceId = deviceId, ip = ip,
             hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
             appVersion = appVersion, rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onRequestOverlayPermission = onRequestOverlayPermission,
@@ -497,29 +490,26 @@ private fun RightPanel(
         )
         SId.PIXEL_SHIFT -> ToggleDetail(
             meta = settingMeta[SId.PIXEL_SHIFT]!!,
-            isOn = infoValues.settings?.pixelShift ?: false,
+            isOn = settings.pixelShift,
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onSetValue = { wantOn ->
-                val current = infoValues.settings?.pixelShift ?: false
-                if (wantOn != current) onToggle(SId.PIXEL_SHIFT)
+                if (wantOn != settings.pixelShift) onToggle(SId.PIXEL_SHIFT)
             }
         )
         SId.DISPLAY_NOTIFICATIONS -> ToggleDetail(
             meta = settingMeta[SId.DISPLAY_NOTIFICATIONS]!!,
-            isOn = infoValues.notifications?.displayNotifications ?: true,
+            isOn = settings.displayNotifications,
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onSetValue = { wantOn ->
-                val current = infoValues.notifications?.displayNotifications ?: true
-                if (wantOn != current) onToggle(SId.DISPLAY_NOTIFICATIONS)
+                if (wantOn != settings.displayNotifications) onToggle(SId.DISPLAY_NOTIFICATIONS)
             }
         )
         SId.DISPLAY_FIXED -> ToggleDetail(
             meta = settingMeta[SId.DISPLAY_FIXED]!!,
-            isOn = infoValues.notifications?.displayFixedNotifications ?: true,
+            isOn = settings.displayFixedNotifications,
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onSetValue = { wantOn ->
-                val current = infoValues.notifications?.displayFixedNotifications ?: true
-                if (wantOn != current) onToggle(SId.DISPLAY_FIXED)
+                if (wantOn != settings.displayFixedNotifications) onToggle(SId.DISPLAY_FIXED)
             }
         )
         SId.SERVICE_CONTROL -> ServiceDetail(
@@ -535,14 +525,13 @@ private fun RightPanel(
         else -> ValueDetail(
             meta = settingMeta[selectedItem]!!,
             currentValue = when (selectedItem) {
-                SId.DEVICE_NAME -> infoValues.settings?.deviceName ?: "OverSight Device"
-                SId.REMOTE_PORT -> (infoValues.settings?.remotePort ?: 5001).toString()
-                SId.HOT_CORNER -> cornerLabels[cornerValues.indexOf(HotCorner.fromRestApiName(infoValues.overlay?.hotCorner ?: "top_end")).coerceAtLeast(0)]
-                SId.CLOCK_VISIBILITY -> "${infoValues.overlay?.clockOverlayVisibility ?: 0}%"
-                SId.DIMMER -> "${infoValues.overlay?.overlayVisibility ?: 0}%"
-                SId.NOTIFICATION_DURATION -> "${infoValues.notifications?.notificationDuration ?: 8}s"
-                SId.FIXED_VISIBILITY -> "${infoValues.notifications?.fixedNotificationsVisibility ?: 100}%"
-                else -> ""
+                SId.DEVICE_NAME -> settings.deviceName
+                SId.REMOTE_PORT -> settings.remotePort.toString()
+                SId.HOT_CORNER -> cornerLabels[cornerValues.indexOf(settings.hotCorner).coerceAtLeast(0)]
+                SId.CLOCK_VISIBILITY -> "${settings.clockVisibility}%"
+                SId.DIMMER -> "${settings.overlayVisibility}%"
+                SId.NOTIFICATION_DURATION -> "${settings.notificationDuration}s"
+                SId.FIXED_VISIBILITY -> "${settings.fixedNotificationsVisibility}%"
             },
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onEdit = { onEdit(selectedItem) }
@@ -554,15 +543,14 @@ private fun RightPanel(
 
 @Composable
 private fun AboutDetail(
-    infoValues: us.bergnet.oversight.data.model.InfoValues,
-    isRunning: Boolean, deviceId: String, ip: String,
+    infoValues: InfoValues,
+    isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     backToLeft: Modifier,
     onRequestOverlayPermission: () -> Unit, onRequestBatteryExemption: () -> Unit
 ) {
-    val deviceName = infoValues.settings?.deviceName ?: "OverSight Device"
-    val port = infoValues.settings?.remotePort ?: 5001
+    val settings = infoValues.effective()
 
     Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -575,15 +563,15 @@ private fun AboutDetail(
         Text("v$appVersion", color = TextMuted, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(8.dp))
         Text("Overlay notifications for your TV,\ncontrolled via REST API.", color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
-        Text("https://oversight.example.com", color = Accent, fontSize = 12.sp)
+        Text("github.com/evil-dog/oversight", color = Accent, fontSize = 12.sp)
         Spacer(modifier = Modifier.height(20.dp))
 
         Column(modifier = Modifier.fillMaxWidth(0.85f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             InfoLine("Service", if (isRunning) "Running" else "Stopped", if (isRunning) Green else Red)
-            InfoLine("mDNS", if (isRunning) "Advertising" else "Inactive", if (isRunning) Green else TextMuted)
+            InfoLine("mDNS", if (mdnsRegistered) "Advertising" else "Inactive", if (mdnsRegistered) Green else TextMuted)
             InfoLine("IP Address", ip, TextPrimary)
-            InfoLine("Port", port.toString(), TextPrimary)
-            InfoLine("Device", deviceName, TextPrimary)
+            InfoLine("Port", settings.remotePort.toString(), TextPrimary)
+            InfoLine("Device", settings.deviceName, TextPrimary)
             InfoLine("Device ID", deviceId, TextMuted)
             InfoLine("Overlay", if (hasOverlayPermission) "Granted" else "Required", if (hasOverlayPermission) Green else Red)
             InfoLine("Battery", if (hasBatteryExemption) "Exempt" else "Not Exempt", if (hasBatteryExemption) Green else Orange)
@@ -691,7 +679,7 @@ private fun ValueDetail(
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onEdit,
-            colors = ButtonDefaults.buttonColors(containerColor = ItemFocused),
+            colors = ButtonDefaults.buttonColors(containerColor = Surface),
             shape = RoundedCornerShape(12.dp),
             modifier = backToLeft
                 .onFocusChanged { focused = it.isFocused }
@@ -850,7 +838,7 @@ private fun SelectorContent(
                         else false
                     }
                     .focusable()
-                    .background(if (focused) ItemFocused else Color.Transparent, RoundedCornerShape(8.dp))
+                    .background(if (focused) Surface else Color.Transparent, RoundedCornerShape(8.dp))
                     .let { if (focused) it.border(1.dp, Accent, RoundedCornerShape(8.dp)) else it }
                     .padding(horizontal = 16.dp, vertical = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,

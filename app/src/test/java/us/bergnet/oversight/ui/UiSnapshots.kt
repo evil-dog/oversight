@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
@@ -91,6 +91,7 @@ class UiSnapshots {
         OverlayStateStore.setLayoutList(NotificationLayoutList())
         OverlayStateStore.setDeviceId("00000000-snapshot")
         OverlayStateStore.setServiceRunning(true)
+        OverlayStateStore.setMdnsRegistered(true)
         while (OverlayStateStore.currentNotification.value != null) OverlayStateStore.dismissCurrentNotification()
     }
 
@@ -247,7 +248,8 @@ class UiSnapshots {
             SetupScreen(
                 hasOverlayPermission = true, hasBatteryExemption = false,
                 onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
-                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {}
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                appVersion = "1.2.3"
             )
         }
     }

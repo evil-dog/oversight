@@ -79,13 +79,8 @@ dependencies {
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
-    implementation("androidx.lifecycle:lifecycle-process:2.11.0")
-
-    // TV Compose
-    implementation("androidx.tv:tv-material:1.1.0")
 
     // Ktor Server
     implementation("io.ktor:ktor-server-netty:3.6.0") {
@@ -94,7 +89,6 @@ dependencies {
     }
     implementation("io.ktor:ktor-server-content-negotiation:3.6.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
-    implementation("io.ktor:ktor-server-cors:3.6.0")
 
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
@@ -104,7 +98,8 @@ dependencies {
     implementation("com.mikepenz:community-material-typeface:7.0.96.2-kotlin@aar")
 
     // Images (Coil)
-    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt.coil3:coil-compose:3.6.3")
+    implementation("io.coil-kt.coil3:coil-network-okhttp:3.6.3")
 
     // Video (Media3/ExoPlayer)
     implementation("androidx.media3:media3-exoplayer:1.11.1")
@@ -118,8 +113,6 @@ dependencies {
 
     // Core
     implementation("androidx.core:core-ktx:1.19.1")
-    implementation("androidx.appcompat:appcompat:1.8.0")
-    implementation("androidx.leanback:leanback:1.2.0")
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")

@@ -82,4 +82,35 @@ data class InfoValues(
 
         return result
     }
+
+    /** These values with defaults applied — the single place defaults are defined. */
+    fun effective() = EffectiveSettings(
+        overlayVisibility = overlay?.overlayVisibility ?: 0,
+        clockVisibility = overlay?.clockOverlayVisibility ?: 0,
+        hotCorner = overlay?.hotCorner?.let { HotCorner.fromRestApiName(it) } ?: HotCorner.TOP_END,
+        deviceName = settings?.deviceName ?: "OverSight Device",
+        // Persisted values predate port validation, so re-check here rather than trusting storage
+        remotePort = settings?.remotePort?.takeIf { it in SettingsValues.VALID_PORTS } ?: 5001,
+        pixelShift = settings?.pixelShift ?: false,
+        displayNotifications = notifications?.displayNotifications ?: true,
+        notificationDuration = notifications?.notificationDuration ?: 8,
+        notificationLayoutName = notifications?.notificationLayoutName,
+        displayFixedNotifications = notifications?.displayFixedNotifications ?: true,
+        fixedNotificationsVisibility = notifications?.fixedNotificationsVisibility ?: 100,
+    )
 }
+
+data class EffectiveSettings(
+    val overlayVisibility: Int,
+    val clockVisibility: Int,
+    val hotCorner: HotCorner,
+    val deviceName: String,
+    val remotePort: Int,
+    val pixelShift: Boolean,
+    val displayNotifications: Boolean,
+    val notificationDuration: Int,
+    /** Null means use the layout list's selected layout. */
+    val notificationLayoutName: String?,
+    val displayFixedNotifications: Boolean,
+    val fixedNotificationsVisibility: Int,
+)

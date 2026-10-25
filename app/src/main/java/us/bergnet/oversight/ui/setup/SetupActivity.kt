@@ -86,7 +86,8 @@ class SetupActivity : ComponentActivity() {
                         },
                         onClearFixedNotifications = {
                             OverlayStateStore.setFixedNotifications(emptyList())
-                        }
+                        },
+                        appVersion = appVersion
                     )
                 }
             }
@@ -100,6 +101,10 @@ class SetupActivity : ComponentActivity() {
         if (onboardingComplete.value == true && hasOverlayPermission.value) {
             startOverlayService()
         }
+    }
+
+    private val appVersion: String by lazy {
+        packageManager.getPackageInfo(packageName, 0).versionName ?: "unknown"
     }
 
     private fun updatePermissionStates() {

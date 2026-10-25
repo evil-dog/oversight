@@ -34,10 +34,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import us.bergnet.oversight.ui.theme.Accent
+import us.bergnet.oversight.ui.theme.Background
+import us.bergnet.oversight.ui.theme.Surface
+import us.bergnet.oversight.ui.theme.TextSecondary
 
-private val BgColor = Color(0xFF1A1A2E)
-private val CardColor = Color(0xFF2A2A4E)
-private val AccentColor = Color(0xFF6C63FF)
 
 @Composable
 fun OnboardingScreen(
@@ -61,13 +62,13 @@ fun OnboardingScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgColor),
+            .background(Background),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .width(500.dp)
-                .background(CardColor, RoundedCornerShape(12.dp))
+                .background(Surface, RoundedCornerShape(12.dp))
                 .padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -93,7 +94,7 @@ fun OnboardingScreen(
                             .width(if (idx == currentStep) 24.dp else 8.dp)
                             .height(8.dp)
                             .background(
-                                if (idx == currentStep) AccentColor else Color(0xFF555577),
+                                if (idx == currentStep) Accent else Color(0xFF555577),
                                 RoundedCornerShape(4.dp)
                             )
                     )
@@ -109,7 +110,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
 
     Text(
         text = "OverSight",
-        color = AccentColor,
+        color = Accent,
         fontSize = 32.sp,
         fontWeight = FontWeight.Bold
     )
@@ -124,7 +125,7 @@ private fun WelcomeStep(onNext: () -> Unit) {
     Spacer(modifier = Modifier.height(32.dp))
     Button(
         onClick = onNext,
-        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent),
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.focusRequester(focusRequester)
     ) {
@@ -152,7 +153,7 @@ private fun OverlayPermissionStep(
     Spacer(modifier = Modifier.height(16.dp))
     Text(
         text = "OverSight needs permission to draw over other apps to display the overlay clock and notifications.\n\nAfter pressing Grant, scroll through the app list to find OverSight and enable the permission.",
-        color = Color(0xFFB0B0B0),
+        color = TextSecondary,
         fontSize = 14.sp,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth()
@@ -160,7 +161,7 @@ private fun OverlayPermissionStep(
     Spacer(modifier = Modifier.height(24.dp))
     Button(
         onClick = onGrant,
-        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent),
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.focusRequester(grantFocus)
     ) {
@@ -190,7 +191,7 @@ private fun BatteryStep(
     Spacer(modifier = Modifier.height(16.dp))
     Text(
         text = "To keep the overlay running reliably, exempt OverSight from battery optimization. This prevents Android from killing the service.",
-        color = Color(0xFFB0B0B0),
+        color = TextSecondary,
         fontSize = 14.sp,
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth()
@@ -198,7 +199,7 @@ private fun BatteryStep(
     Spacer(modifier = Modifier.height(24.dp))
     Button(
         onClick = onRequest,
-        colors = ButtonDefaults.buttonColors(containerColor = AccentColor),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent),
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.focusRequester(requestFocus)
     ) {
@@ -222,7 +223,7 @@ private fun SkipButton(onClick: () -> Unit) {
             .then(
                 if (focused) Modifier.border(
                     2.dp,
-                    AccentColor,
+                    Accent,
                     RoundedCornerShape(8.dp)
                 ) else Modifier
             ),

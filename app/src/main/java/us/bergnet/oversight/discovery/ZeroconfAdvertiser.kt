@@ -39,14 +39,17 @@ class ZeroconfAdvertiser(private val context: Context) {
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(serviceInfo: NsdServiceInfo) {
                 Log.d(TAG, "Service registered: ${serviceInfo.serviceName}")
+                OverlayStateStore.setMdnsRegistered(true)
             }
 
             override fun onRegistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
                 Log.e(TAG, "Registration failed: errorCode=$errorCode")
+                OverlayStateStore.setMdnsRegistered(false)
             }
 
             override fun onServiceUnregistered(serviceInfo: NsdServiceInfo) {
                 Log.d(TAG, "Service unregistered: ${serviceInfo.serviceName}")
+                OverlayStateStore.setMdnsRegistered(false)
             }
 
             override fun onUnregistrationFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {

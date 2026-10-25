@@ -1,7 +1,6 @@
 package us.bergnet.oversight.data.store
 
 import us.bergnet.oversight.data.model.*
-import us.bergnet.oversight.data.model.enums.HotCorner
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,44 +42,21 @@ object OverlayStateStore {
     private val _isServiceRunning = MutableStateFlow(false)
     val isServiceRunning: StateFlow<Boolean> = _isServiceRunning.asStateFlow()
 
+    // mDNS registration state, as reported by NsdManager callbacks
+    private val _isMdnsRegistered = MutableStateFlow(false)
+    val isMdnsRegistered: StateFlow<Boolean> = _isMdnsRegistered.asStateFlow()
+
     // Device info
     private val _deviceId = MutableStateFlow("")
     val deviceId: StateFlow<String> = _deviceId.asStateFlow()
 
-    // --- Accessors ---
+    // --- Accessors (defaults live in InfoValues.effective()) ---
 
-    fun getOverlayVisibility(): Int =
-        _infoValues.value.overlay?.overlayVisibility ?: 0
+    fun getDeviceName(): String = _infoValues.value.effective().deviceName
 
-    fun getClockOverlayVisibility(): Int =
-        _infoValues.value.overlay?.clockOverlayVisibility ?: 0
+    fun getRemotePort(): Int = _infoValues.value.effective().remotePort
 
-    fun getHotCorner(): HotCorner {
-        val name = _infoValues.value.overlay?.hotCorner ?: "top_end"
-        return HotCorner.fromRestApiName(name)
-    }
-
-    fun getDeviceName(): String =
-        _infoValues.value.settings?.deviceName ?: "OverSight Device"
-
-    // Persisted values predate port validation, so re-check here rather than trusting storage
-    fun getRemotePort(): Int =
-        _infoValues.value.settings?.remotePort?.takeIf { it in SettingsValues.VALID_PORTS } ?: 5001
-
-    fun getNotificationDuration(): Int =
-        _infoValues.value.notifications?.notificationDuration ?: 8
-
-    fun isDisplayNotifications(): Boolean =
-        _infoValues.value.notifications?.displayNotifications ?: true
-
-    fun isDisplayFixedNotifications(): Boolean =
-        _infoValues.value.notifications?.displayFixedNotifications ?: true
-
-    fun getFixedNotificationsVisibility(): Int =
-        _infoValues.value.notifications?.fixedNotificationsVisibility ?: 0
-
-    fun isPixelShift(): Boolean =
-        _infoValues.value.settings?.pixelShift ?: false
+    fun isDisplayNotifications(): Boolean = _infoValues.value.effective().displayNotifications
 
     // --- Mutators ---
 
@@ -188,6 +164,10 @@ object OverlayStateStore {
         _isServiceRunning.value = running
     }
 
+    fun setMdnsRegistered(registered: Boolean) {
+        _isMdnsRegistered.value = registered
+    }
+
     fun setDeviceId(id: String) {
         _deviceId.value = id
     }
@@ -203,18 +183,13 @@ object OverlayStateStore {
             if (idx >= 0) next[idx] = layout else next.add(layout)
             current.copy(list = next, selected = if (select) layout.name else current.selected)
         }
-        // notificationLayoutName takes precedence over layoutList.selected (see getCurrentLayoutName),
+        // notificationLayoutName takes precedence over layoutList.selected (see NotificationLayoutList.resolve),
         // so selecting must update both or the old layout stays active.
         if (select) {
             updateInfoValues(InfoValues(notifications = NotificationValues(notificationLayoutName = layout.name)))
         }
     }
 
-    fun getCurrentLayoutName(): String =
-        _infoValues.value.notifications?.notificationLayoutName ?: _layoutList.value.selected
-
-    fun getCurrentLayout(): NotificationLayout {
-        val name = getCurrentLayoutName()
-        return _layoutList.value.list.firstOrNull { it.name == name } ?: NotificationLayout.DEFAULT
-    }
+    fun getCurrentLayout(): NotificationLayout =
+        _layoutList.value.resolve(_infoValues.value.effective().notificationLayoutName)
 }

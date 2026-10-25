@@ -21,6 +21,8 @@ data class NotificationLayout(
     val backgroundColor: String = "#66000000",
     val progressBarColor: String = "#2196F3"
 ) {
+    fun isIconOnly(): Boolean = !titleDisplay && !sourceDisplay && !messageDisplay
+
     companion object {
         val DEFAULT = NotificationLayout()
 

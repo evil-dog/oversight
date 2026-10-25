@@ -6,4 +6,8 @@ import kotlinx.serialization.Serializable
 data class NotificationLayoutList(
     val list: List<NotificationLayout> = NotificationLayout.ALL_DEFAULTS,
     val selected: String = "Default"
-)
+) {
+    /** The active layout: [name] (InfoValues.notificationLayoutName) takes precedence over [selected]. */
+    fun resolve(name: String?): NotificationLayout =
+        list.firstOrNull { it.name == (name ?: selected) } ?: NotificationLayout.DEFAULT
+}

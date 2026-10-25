@@ -7,7 +7,6 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.os.Build
 import android.os.IBinder
 import android.os.PowerManager
 import android.util.Log
@@ -38,12 +37,7 @@ class OverlayService : Service() {
         private const val NOTIFICATION_ID = 1
 
         fun start(context: Context) {
-            val intent = Intent(context, OverlayService::class.java)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                context.startForegroundService(intent)
-            } else {
-                context.startService(intent)
-            }
+            context.startForegroundService(Intent(context, OverlayService::class.java))
         }
 
         fun stop(context: Context) {
@@ -128,6 +122,7 @@ class OverlayService : Service() {
         serviceScope.cancel()
         releaseWakeLock()
         OverlayStateStore.setServiceRunning(false)
+        OverlayStateStore.setMdnsRegistered(false)
     }
 
     /**
@@ -167,6 +162,9 @@ class OverlayService : Service() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
         // The previous lock usually timed out already; release() on an unheld lock throws "under-locked"
         releaseWakeLock()
+        // Deprecated in favor of window flags, but a background service has no window to set them on;
+        // FULL_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP is still the only way to turn the screen on from here.
+        @Suppress("DEPRECATION")
         wakeLock = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "oversight:screen_on"
@@ -184,37 +182,24 @@ class OverlayService : Service() {
     }
 
     private fun createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                getString(R.string.service_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = getString(R.string.service_channel_description)
-                setShowBadge(false)
-            }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            getString(R.string.service_channel_name),
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = getString(R.string.service_channel_description)
+            setShowBadge(false)
         }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {
         val port = OverlayStateStore.getRemotePort()
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            Notification.Builder(this, CHANNEL_ID)
-                .setContentTitle(getString(R.string.service_notification_title))
-                .setContentText(getString(R.string.service_notification_text, port))
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setOngoing(true)
-                .build()
-        } else {
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-                .setContentTitle(getString(R.string.service_notification_title))
-                .setContentText(getString(R.string.service_notification_text, port))
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
-                .setOngoing(true)
-                .build()
-        }
+        return Notification.Builder(this, CHANNEL_ID)
+            .setContentTitle(getString(R.string.service_notification_title))
+            .setContentText(getString(R.string.service_notification_text, port))
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setOngoing(true)
+            .build()
     }
 }

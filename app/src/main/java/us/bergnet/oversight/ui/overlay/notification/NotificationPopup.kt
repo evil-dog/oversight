@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -21,8 +22,9 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.rtsp.RtspMediaSource
 import androidx.media3.exoplayer.source.MediaSource
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import us.bergnet.oversight.data.model.NotificationLayout
@@ -106,7 +108,7 @@ fun NotificationPopup(
                     Box {
                         if (hasVideo) {
                             NotificationVideo(
-                                url = notification.video!!,
+                                url = notification.video,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .aspectRatio(16f / 9f),
@@ -117,14 +119,14 @@ fun NotificationPopup(
                             if (hasVideo) {
                                 // Poster over the video frame until the stream renders (slow RTSP cameras)
                                 NotificationImage(
-                                    url = notification.image!!,
+                                    url = notification.image,
                                     modifier = Modifier.matchParentSize(),
                                     contentScale = ContentScale.Crop
                                 )
                             } else {
                                 // Capped so portrait images don't take over the screen; Inside never upscales
                                 NotificationImage(
-                                    url = notification.image!!,
+                                    url = notification.image,
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .heightIn(max = MaxImageHeight),
@@ -133,22 +135,15 @@ fun NotificationPopup(
                             }
                         }
                         // Progress bar overlaid on the bottom of the media
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(progress.value)
-                                .height(3.dp)
-                                .align(Alignment.BottomStart)
-                                .background(barColor)
+                        ProgressBar(
+                            progress = { progress.value },
+                            color = barColor,
+                            modifier = Modifier.align(Alignment.BottomStart)
                         )
                     }
                 } else {
                     // No media — progress bar sits below the text at the card bottom
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(progress.value)
-                            .height(3.dp)
-                            .background(barColor)
-                    )
+                    ProgressBar(progress = { progress.value }, color = barColor)
                 }
             }
         }
@@ -161,20 +156,30 @@ private fun NotificationLayoutContent(
     layout: NotificationLayout,
     overrideBgColor: Color? = null
 ) {
-    when (layout.name) {
-        "Only Icon" -> IconOnlyNotificationLayout(
-            notification, layout, overrideBgColor = overrideBgColor
-        )
-        "Minimalist" -> MinimalistNotificationLayout(
-            notification, layout, overrideBgColor = overrideBgColor
-        )
-        else -> DefaultNotificationLayout(
-            notification, layout, overrideBgColor = overrideBgColor
-        )
+    // Chosen by flags, not name, so custom layouts with all text hidden render icon-only too
+    if (layout.isIconOnly()) {
+        IconOnlyNotificationLayout(notification, layout, overrideBgColor = overrideBgColor)
+    } else {
+        DefaultNotificationLayout(notification, layout, overrideBgColor = overrideBgColor)
     }
 }
 
 private val MaxImageHeight = 200.dp
+
+/**
+ * Progress is read in the draw phase, so the animation only redraws the bar instead of
+ * recomposing the whole popup (text, images, video) every frame.
+ * fillMaxWidth contributes no intrinsic width, so the bar doesn't widen the IntrinsicSize.Max card.
+ */
+@Composable
+private fun ProgressBar(progress: () -> Float, color: Color, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(3.dp)
+            .drawBehind { drawRect(color, size = size.copy(width = size.width * progress())) }
+    )
+}
 
 @Composable
 fun NotificationImage(

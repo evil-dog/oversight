@@ -21,8 +21,9 @@ import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.enums.FixedNotificationShape
 import us.bergnet.oversight.ui.components.MdiIcon
@@ -100,7 +101,7 @@ fun FixedNotificationBadge(
         // Text
         if (showText) {
             Text(
-                text = notification.text!!,
+                text = notification.text,
                 color = textColor,
                 fontSize = size.fontSize.sp,
                 // The theme's body line height (24sp) would make text badges taller than icon-only ones

@@ -64,7 +64,7 @@ app/src/main/java/us/bergnet/oversight/
 │   ├── overlay/            # OverlayContent, ClockOverlay, BackgroundDimmer
 │   │   └── notification/   # NotificationPopup, NotificationLayouts, FixedNotificationBadge
 │   ├── setup/              # SetupActivity, OnboardingScreen, SetupScreen
-│   └── theme/              # OverlayTheme
+│   └── theme/              # OverlayTheme, Colors (shared palette)
 └── util/                   # ColorParser, ExpirationParser, IconResolver, NetworkUtils
 ```
 
@@ -108,7 +108,7 @@ Fixed badges use `MutableTransitionState` so items continue animating out after 
 `enqueueNotification()` drops notifications immediately when `displayNotifications = false`. This prevents a backlog that would flush on re-enable. Never accumulate notifications while the setting is off.
 
 ### Progress Bar Width and `IntrinsicSize.Max`
-When a Column child uses `fillMaxWidth(fraction)`, it forces the Column to expand to its maximum constraint (`widthIn(max = X)`), even when the content is much narrower. Apply `Modifier.width(IntrinsicSize.Max)` before `widthIn(max = ...)` to let the Column size to its natural content width, then the bar animates within that. The bar has 0 intrinsic width so it doesn't influence the Column's intrinsic size calculation.
+When a Column child uses `fillMaxWidth`, it forces the Column to expand to its maximum constraint (`widthIn(max = X)`), even when the content is much narrower. Apply `Modifier.width(IntrinsicSize.Max)` before `widthIn(max = ...)` to let the Column size to its natural content width. The progress bar (`ProgressBar` in `NotificationPopup.kt`) is `fillMaxWidth()` with 0 intrinsic width, and draws its fraction in `drawBehind` — read animated values in the draw phase, not composition, or the whole popup recomposes every frame.
 
 ### Video Aspect Ratio
 Use `aspectRatio(16f / 9f)` with `fillMaxWidth()` for video containers instead of a fixed height. A fixed height with dynamic width (from `IntrinsicSize.Max`) produces distorted/square video.

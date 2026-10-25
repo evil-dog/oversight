@@ -95,14 +95,13 @@ class StateMergeTest {
     fun selectingLayoutMakesItActiveEvenWhenNameWasSetBefore() {
         OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(notificationLayoutName = "Default")))
         OverlayStateStore.upsertLayout(NotificationLayout(name = "Custom"), select = true)
-        assertEquals("Custom", OverlayStateStore.getCurrentLayoutName())
         assertEquals("Custom", OverlayStateStore.getCurrentLayout().name)
     }
 
     @Test
     fun upsertWithoutSelectLeavesActiveLayout() {
         OverlayStateStore.upsertLayout(NotificationLayout(name = "Custom"), select = false)
-        assertEquals("Default", OverlayStateStore.getCurrentLayoutName())
+        assertEquals("Default", OverlayStateStore.getCurrentLayout().name)
     }
 
     // --- Port validation ---

@@ -19,8 +19,9 @@ import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
 import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.ui.components.MdiIcon
@@ -156,16 +157,6 @@ fun DefaultNotificationLayout(
 }
 
 @Composable
-fun MinimalistNotificationLayout(
-    notification: ReceivedNotification,
-    layout: NotificationLayout,
-    modifier: Modifier = Modifier,
-    overrideBgColor: Color? = null
-) {
-    DefaultNotificationLayout(notification, layout, modifier, overrideBgColor)
-}
-
-@Composable
 fun IconOnlyNotificationLayout(
     notification: ReceivedNotification,
     layout: NotificationLayout,
@@ -175,7 +166,9 @@ fun IconOnlyNotificationLayout(
     val bgColor = overrideBgColor
         ?: ColorParser.parseOrDefault(layout.backgroundColor, Color.Black.copy(alpha = 0.4f))
     val primaryIcon = notification.getDisplayIcon()
-    val smallIconName = notification.smallIcon?.takeIf { IconResolver.isMdiIcon(it) }
+    val smallIconName = notification.smallIcon?.takeIf {
+        layout.iconSecondaryDisplay && IconResolver.isMdiIcon(it)
+    }
     val smallIconTint = ColorParser.parseOrDefault(notification.smallIconColor, Color.White)
 
     Box(
