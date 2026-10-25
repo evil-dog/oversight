@@ -45,6 +45,7 @@ import us.bergnet.oversight.data.model.enums.HotCorner
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import us.bergnet.oversight.ui.setup.SetupScreen
+import us.bergnet.oversight.ui.theme.OverlayTheme
 
 /**
  * Renders UI surfaces to PNGs without a device. Shield TV resolution: 1920x1080 = 960x540dp @ xhdpi.
@@ -53,7 +54,8 @@ import us.bergnet.oversight.ui.setup.SetupScreen
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(sdk = [35], qualifiers = "w960dp-h540dp-land-xhdpi")
+// Plain Application: OverSightApplication would load DataStore state concurrently and race with test setup
+@Config(sdk = [35], qualifiers = "w960dp-h540dp-land-xhdpi", application = android.app.Application::class)
 class UiSnapshots {
 
     @get:Rule
@@ -251,12 +253,14 @@ class UiSnapshots {
     }
 }
 
-/** Stand-in for TV content behind the transparent overlay. */
+/** Stand-in for TV content behind the transparent overlay, themed like the real overlay window. */
 @Composable
 private fun TvBackdrop(content: @Composable () -> Unit) {
-    Box(
-        Modifier.fillMaxSize().background(
-            Brush.linearGradient(listOf(Color(0xFF3A6073), Color(0xFF16222A), Color(0xFF6B4F2A)))
-        )
-    ) { content() }
+    OverlayTheme {
+        Box(
+            Modifier.fillMaxSize().background(
+                Brush.linearGradient(listOf(Color(0xFF3A6073), Color(0xFF16222A), Color(0xFF6B4F2A)))
+            )
+        ) { content() }
+    }
 }

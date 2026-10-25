@@ -2,6 +2,7 @@ package us.bergnet.oversight.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -11,6 +12,7 @@ import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.NotificationLayoutList
 import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayCustomization
+import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.data.model.SettingsValues
 import us.bergnet.oversight.data.model.enums.FontWeightEnum
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -23,6 +25,7 @@ class StateMergeTest {
         OverlayStateStore.setInfoValues(InfoValues())
         OverlayStateStore.setFixedNotifications(emptyList())
         OverlayStateStore.setLayoutList(NotificationLayoutList())
+        OverlayStateStore.clearNotifications()
     }
 
     private fun decodeFixed(json: String) = HttpServer.json.decodeFromString<FixedNotification>(json)
@@ -119,5 +122,22 @@ class StateMergeTest {
         // setInfoValues is the load path and bypasses merge validation
         OverlayStateStore.setInfoValues(InfoValues(settings = SettingsValues(remotePort = 80)))
         assertEquals(5001, OverlayStateStore.getRemotePort())
+    }
+
+    // --- Notifications toggle ---
+
+    @Test
+    fun disablingNotificationsClearsCurrentAndQueue() {
+        OverlayStateStore.enqueueNotification(ReceivedNotification(id = "1", title = "a"))
+        OverlayStateStore.enqueueNotification(ReceivedNotification(id = "2", title = "b"))
+        assertEquals(1, OverlayStateStore.notificationQueue.value.size)
+
+        OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(displayNotifications = false)))
+        assertNull(OverlayStateStore.currentNotification.value)
+        assertTrue(OverlayStateStore.notificationQueue.value.isEmpty())
+
+        // Re-enabling must not resurrect the old toast
+        OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(displayNotifications = true)))
+        assertNull(OverlayStateStore.currentNotification.value)
     }
 }

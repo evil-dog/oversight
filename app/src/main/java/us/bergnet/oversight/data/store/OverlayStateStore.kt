@@ -86,6 +86,14 @@ object OverlayStateStore {
 
     fun updateInfoValues(new: InfoValues) {
         _infoValues.update { it.merge(new) }
+        // The popup leaves composition when notifications are off, so its dismiss timer never fires;
+        // without this the stranded toast (and anything queued behind it) reappears on re-enable.
+        if (!isDisplayNotifications()) clearNotifications()
+    }
+
+    fun clearNotifications() {
+        _notificationQueue.value = emptyList()
+        _currentNotification.value = null
     }
 
     fun setInfoValues(values: InfoValues) {

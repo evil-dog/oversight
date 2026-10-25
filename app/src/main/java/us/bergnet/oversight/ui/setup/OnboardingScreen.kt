@@ -49,13 +49,13 @@ fun OnboardingScreen(
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
 
-    // Auto-advance logic
-    if (currentStep == 1 && hasOverlayPermission) {
-        currentStep = 2
+    // Auto-advance when a permission is granted (e.g. on returning from Settings). Runs as effects:
+    // state writes and onComplete() during composition can repeat on every recomposition.
+    LaunchedEffect(currentStep, hasOverlayPermission) {
+        if (currentStep == 1 && hasOverlayPermission) currentStep = 2
     }
-    if (currentStep == 2 && hasBatteryExemption) {
-        onComplete()
-        return
+    LaunchedEffect(currentStep, hasBatteryExemption) {
+        if (currentStep == 2 && hasBatteryExemption) onComplete()
     }
 
     Box(

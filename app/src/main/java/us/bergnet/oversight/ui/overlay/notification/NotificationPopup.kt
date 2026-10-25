@@ -75,9 +75,11 @@ fun NotificationPopup(
             val bgColor = ColorParser.parseOrDefault(
                 layout.backgroundColor, Color.Black.copy(alpha = 0.4f)
             )
+            // imageDisplay governs all media, so icon-only layouts stay compact
             val hasImage = layout.imageDisplay && !notification.image.isNullOrBlank()
-            val hasVideo = !notification.video.isNullOrBlank()
+            val hasVideo = layout.imageDisplay && !notification.video.isNullOrBlank()
             val hasMedia = hasImage || hasVideo
+            var videoStarted by remember(notification.id) { mutableStateOf(false) }
 
             Column(
                 modifier = Modifier
@@ -102,19 +104,33 @@ fun NotificationPopup(
                     // Media + progress bar overlaid at the bottom edge of the media.
                     // The media goes flush to the card edge; the outer clip rounds its corners.
                     Box {
-                        if (hasImage) {
-                            NotificationImage(
-                                url = notification.image!!,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
                         if (hasVideo) {
                             NotificationVideo(
                                 url = notification.video!!,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .aspectRatio(16f / 9f)
+                                    .aspectRatio(16f / 9f),
+                                onFirstFrame = { videoStarted = true }
                             )
+                        }
+                        if (hasImage && !videoStarted) {
+                            if (hasVideo) {
+                                // Poster over the video frame until the stream renders (slow RTSP cameras)
+                                NotificationImage(
+                                    url = notification.image!!,
+                                    modifier = Modifier.matchParentSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                // Capped so portrait images don't take over the screen; Inside never upscales
+                                NotificationImage(
+                                    url = notification.image!!,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = MaxImageHeight),
+                                    contentScale = ContentScale.Inside
+                                )
+                            }
                         }
                         // Progress bar overlaid on the bottom of the media
                         Box(
@@ -158,10 +174,13 @@ private fun NotificationLayoutContent(
     }
 }
 
+private val MaxImageHeight = 200.dp
+
 @Composable
 fun NotificationImage(
     url: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.FillWidth
 ) {
     AsyncImage(
         model = ImageRequest.Builder(LocalContext.current)
@@ -170,21 +189,26 @@ fun NotificationImage(
             .build(),
         contentDescription = null,
         modifier = modifier,
-        contentScale = ContentScale.FillWidth
+        contentScale = contentScale
     )
 }
 
 @Composable
 fun NotificationVideo(
     url: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFirstFrame: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val currentOnFirstFrame by rememberUpdatedState(onFirstFrame)
 
     val exoPlayer = remember(url) {
         ExoPlayer.Builder(context).build().apply {
             volume = 0f
             addListener(object : androidx.media3.common.Player.Listener {
+                override fun onRenderedFirstFrame() {
+                    currentOnFirstFrame()
+                }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     android.util.Log.e("NotificationVideo", "ExoPlayer error: ${error.message}", error)
                 }

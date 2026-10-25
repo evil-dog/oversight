@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -16,6 +17,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -47,8 +49,14 @@ fun FixedNotificationBadge(
 
     val size = notification.size ?: us.bergnet.oversight.data.model.enums.FixedNotificationSize.NORMAL
     val showText = !collapsed && !notification.text.isNullOrBlank()
-    val iconOnlyPadding = (size.padding + size.imageSize * 0.2f).coerceAtLeast(size.padding + 2f)
-    val currentPadding = if (showText) size.padding else iconOnlyPadding
+    // Vertical padding is the same collapsed or expanded so the row height doesn't jump on collapse.
+    // With text, leave room proportional to the font, plus extra for the pill ends of CIRCLE.
+    val horizontalPadding = if (showText) {
+        size.padding + size.fontSize * 0.4f +
+            if (notification.shape == FixedNotificationShape.CIRCLE) size.imageSize * 0.15f else 0f
+    } else {
+        size.padding
+    }
 
     val borderMod = if (borderColor != null) {
         Modifier.border(1.dp, borderColor, shape)
@@ -62,7 +70,7 @@ fun FixedNotificationBadge(
             .clip(shape)
             .then(borderMod)
             .background(bgColor)
-            .padding(currentPadding.dp),
+            .padding(horizontal = horizontalPadding.dp, vertical = size.padding.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -95,6 +103,9 @@ fun FixedNotificationBadge(
                 text = notification.text!!,
                 color = textColor,
                 fontSize = size.fontSize.sp,
+                // The theme's body line height (24sp) would make text badges taller than icon-only ones
+                lineHeight = size.fontSize.sp,
+                style = LocalTextStyle.current.copy(platformStyle = PlatformTextStyle(includeFontPadding = false)),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

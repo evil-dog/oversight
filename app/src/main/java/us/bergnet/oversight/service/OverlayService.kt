@@ -21,9 +21,9 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import us.bergnet.oversight.OverSightApplication
 import us.bergnet.oversight.R
 import us.bergnet.oversight.ui.overlay.OverlayContent
-import us.bergnet.oversight.data.repository.PersistenceManager
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.discovery.ZeroconfAdvertiser
 import us.bergnet.oversight.receiver.ScreenStateReceiver
@@ -56,7 +56,6 @@ class OverlayService : Service() {
     private var wakeLock: PowerManager.WakeLock? = null
     private val screenStateReceiver = ScreenStateReceiver()
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private var persistenceManager: PersistenceManager? = null
     private var zeroconfAdvertiser: ZeroconfAdvertiser? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -75,10 +74,9 @@ class OverlayService : Service() {
         }
         registerReceiver(screenStateReceiver, filter)
 
-        // Load persisted state, then start overlay and server
-        persistenceManager = PersistenceManager(this)
+        // Wait for persisted state (loaded once per process by the Application), then start overlay and server
         serviceScope.launch {
-            persistenceManager?.loadAll()
+            OverSightApplication.from(this@OverlayService).stateLoaded.await()
 
             // Start overlay and HTTP server on main thread after state is loaded
             launch(Dispatchers.Main) {
@@ -103,9 +101,6 @@ class OverlayService : Service() {
                 OverlayStateStore.setServiceRunning(true)
                 Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
             }
-
-            // Start auto-saving state changes
-            persistenceManager?.startAutoSave(serviceScope)
         }
     }
 

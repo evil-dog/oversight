@@ -1,41 +1,44 @@
 package us.bergnet.oversight.ui.setup
 
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
-import us.bergnet.oversight.data.repository.PersistenceManager
+import us.bergnet.oversight.OverSightApplication
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.service.OverlayService
 
 class SetupActivity : ComponentActivity() {
 
+    companion object {
+        private const val TAG = "SetupActivity"
+    }
+
     private val hasOverlayPermission = mutableStateOf(false)
     private val hasBatteryExemption = mutableStateOf(false)
     private val onboardingComplete = mutableStateOf<Boolean?>(null) // null = loading
-    private var persistenceManager: PersistenceManager? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         updatePermissionStates()
-        persistenceManager = PersistenceManager(this)
+        val app = OverSightApplication.from(this)
 
         lifecycleScope.launch {
-            // Load persisted state so settings are available even if service isn't running
-            if (!OverlayStateStore.isServiceRunning.value) {
-                persistenceManager?.loadAll()
-                persistenceManager?.startAutoSave(lifecycleScope)
-            }
+            // Settings must reflect persisted state even if the service isn't running
+            app.stateLoaded.await()
 
-            val complete = persistenceManager?.isOnboardingComplete() ?: false
+            val complete = app.persistence.isOnboardingComplete()
             onboardingComplete.value = complete
 
             if (complete && hasOverlayPermission.value) {
@@ -60,7 +63,7 @@ class SetupActivity : ComponentActivity() {
                         onRequestBatteryExemption = { requestBatteryOptimizationExemption() },
                         onComplete = {
                             lifecycleScope.launch {
-                                persistenceManager?.setOnboardingComplete()
+                                app.persistence.setOnboardingComplete()
                             }
                             onboardingComplete.value = true
                             if (overlayGranted) {
@@ -106,11 +109,29 @@ class SetupActivity : ComponentActivity() {
     }
 
     private fun requestOverlayPermission() {
-        val intent = Intent(
-            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-            Uri.parse("package:$packageName")
+        // Many Android TV builds don't ship the overlay permission screen, or only the
+        // un-targeted list version; fall back rather than crash with ActivityNotFoundException.
+        val candidates = listOf(
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
         )
-        startActivity(intent)
+        val launched = candidates.any { intent ->
+            try {
+                startActivity(intent)
+                true
+            } catch (_: ActivityNotFoundException) {
+                false
+            }
+        }
+        if (!launched) {
+            Log.w(TAG, "No overlay permission settings screen on this device")
+            Toast.makeText(
+                this,
+                "Overlay settings aren't available on this device. Grant via ADB:\n" +
+                    "adb shell appops set $packageName SYSTEM_ALERT_WINDOW allow",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun requestBatteryOptimizationExemption() {
