@@ -40,6 +40,10 @@ import us.bergnet.oversight.ui.overlay.OverlayContent
 import us.bergnet.oversight.ui.overlay.notification.DefaultNotificationLayout
 import us.bergnet.oversight.ui.overlay.notification.FixedNotificationBadge
 import us.bergnet.oversight.ui.overlay.notification.IconOnlyNotificationLayout
+import us.bergnet.oversight.ui.overlay.notification.NotificationPopup
+import us.bergnet.oversight.data.model.enums.HotCorner
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import us.bergnet.oversight.ui.setup.SetupScreen
 
 /**
@@ -77,6 +81,7 @@ class UiSnapshots {
         // On device Iconics registers fonts via androidx.startup, which Robolectric doesn't run
         Iconics.init(ApplicationProvider.getApplicationContext())
         Iconics.registerFont(CommunityMaterial)
+        FakeImages.install(ApplicationProvider.getApplicationContext())
         OverlayStateStore.setInfoValues(InfoValues())
         OverlayStateStore.setOverlayCustomization(OverlayCustomization.DEFAULT)
         OverlayStateStore.setClockTextFormat("'9:41 PM'") // quoted literal keeps renders stable
@@ -111,6 +116,92 @@ class UiSnapshots {
         OverlayStateStore.setFixedNotifications(sampleFixed.map { it.withReceivedTime() })
         OverlayStateStore.enqueueNotification(sampleToast)
         capture("overlay_bottom_start_dimmed") { TvBackdrop { OverlayContent() } }
+    }
+
+    /** Popups with media. Image URLs choose the fake picture's shape (see FakeImages). */
+    @Test
+    fun popupMedia() {
+        val base = sampleToast.copy(largeIcon = "mdi:cctv")
+        val cases = listOf(
+            base.copy(id = "landscape", title = "Landscape image", image = "https://img/landscape.jpg") to NotificationLayout.DEFAULT,
+            base.copy(id = "portrait", title = "Portrait image", image = "https://img/portrait.jpg") to NotificationLayout.DEFAULT,
+            base.copy(id = "square", title = "Square image", image = "https://img/square.jpg") to NotificationLayout.DEFAULT,
+        )
+        capture("popup_images") {
+            TvBackdrop {
+                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cases.forEach { (n, layout) ->
+                        NotificationPopup(notification = n, layout = layout, durationSeconds = 8,
+                            corner = HotCorner.TOP_START, onDismiss = {})
+                    }
+                }
+            }
+        }
+    }
+
+    @OptIn(ExperimentalLayoutApi::class)
+    @Test
+    fun popupMediaVariants() {
+        val base = sampleToast.copy(largeIcon = "mdi:cctv")
+        val cases = listOf(
+            base.copy(id = "tiny", title = "Tiny image (64px)", image = "https://img/tiny.png") to NotificationLayout.DEFAULT,
+            base.copy(id = "mini", title = "Minimalist + image", image = "https://img/landscape.jpg") to NotificationLayout.MINIMALIST,
+            base.copy(id = "icononly", title = "Icon only + image", image = "https://img/landscape.jpg") to NotificationLayout.ICON_ONLY,
+            base.copy(id = "urlicon", title = "URL large icon", largeIcon = "https://img/square-icon.png") to NotificationLayout.DEFAULT,
+        )
+        capture("popup_media_variants") {
+            TvBackdrop {
+                FlowRow(
+                    Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    cases.forEach { (n, layout) ->
+                        NotificationPopup(notification = n, layout = layout, durationSeconds = 8,
+                            corner = HotCorner.TOP_START, onDismiss = {})
+                    }
+                }
+            }
+        }
+    }
+
+    /** Robolectric has no video decoder, so video renders as layout only: a black 16:9 box with the progress bar. */
+    @Test
+    fun popupVideo() {
+        val base = sampleToast.copy(largeIcon = "mdi:cctv")
+        val cases = listOf(
+            base.copy(id = "video", title = "Video (layout only)", video = "https://cam/stream.mp4"),
+            base.copy(id = "rtsp", title = "RTSP, no text layout", video = "rtsp://cam/front"),
+            base.copy(id = "both", title = "Image + video", image = "https://img/landscape.jpg", video = "https://cam/stream.mp4"),
+        )
+        capture("popup_video") {
+            TvBackdrop {
+                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cases.forEach { n ->
+                        val layout = if (n.id == "rtsp") NotificationLayout.ICON_ONLY else NotificationLayout.DEFAULT
+                        NotificationPopup(notification = n, layout = layout, durationSeconds = 8,
+                            corner = HotCorner.TOP_START, onDismiss = {})
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun overlay_imageToast() {
+        OverlayStateStore.updateInfoValues(InfoValues(overlay = OverlayValues(clockOverlayVisibility = 100, hotCorner = "top_end")))
+        OverlayStateStore.setFixedNotifications(sampleFixed.map { it.withReceivedTime() })
+        OverlayStateStore.enqueueNotification(sampleToast.copy(id = "img", title = "Package delivered",
+            message = "A package was left at the front door.", image = "https://img/portrait.jpg"))
+        capture("overlay_image_toast") { TvBackdrop { OverlayContent() } }
+    }
+
+    @Test
+    fun overlay_videoToast_bottomEnd() {
+        OverlayStateStore.updateInfoValues(InfoValues(overlay = OverlayValues(clockOverlayVisibility = 100, hotCorner = "bottom_end")))
+        OverlayStateStore.setFixedNotifications(sampleFixed.map { it.withReceivedTime() })
+        OverlayStateStore.enqueueNotification(sampleToast.copy(id = "vid", video = "rtsp://cam/front"))
+        capture("overlay_video_toast_bottom_end") { TvBackdrop { OverlayContent() } }
     }
 
     @Test

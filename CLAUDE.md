@@ -159,5 +159,7 @@ docker run --rm -v $(pwd):/project -v /home/evildog/.android-docker:/root/.andro
 - `OverlayContent` and `SetupScreen` read `OverlayStateStore` directly — set store state in the test before `setContent`. `@Before` resets the singleton.
 - Clock is pinned with a quoted-literal format (`"'9:41 PM'"`) so renders are stable.
 - Iconics fonts must be registered in `@Before` (`Iconics.init` + `registerFont(CommunityMaterial)`); on device this happens via androidx.startup, which Robolectric doesn't run.
-- Coil network images won't load in tests; prefer `mdi:` icons in sample data.
+- Images: `FakeImages` (test) installs a Coil loader that answers every URL with a generated picture. The URL picks the shape: `portrait` (3:4), `square`, `tiny` (64px), otherwise 16:9. It reports `MEMORY_CACHE` so Coil skips crossfade, whose animation would otherwise stay at 0% opacity under Robolectric's frozen clock.
+- Video: Robolectric has no decoder/GPU, so `TextureView` stays black. Video snapshots verify layout (16:9 box, rounding, progress bar), not frames.
+- `FlowRow` silently drops items that don't fit the screen height; split cases across snapshots instead.
 - JVM unit tests run with `./gradlew testDebugUnitTest`.
