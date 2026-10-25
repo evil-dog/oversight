@@ -33,4 +33,6 @@ captures/
 *.hprof
 
 # Claude Code
-.claude/
+.claude/*
+# Project skills are shared; settings.local.json etc. stay local
+!.claude/skills/
