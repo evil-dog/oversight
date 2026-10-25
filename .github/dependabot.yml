@@ -1,0 +1,11 @@
+# Gradle dependencies are handled by the Monthly Dependency Update workflow;
+# Dependabot only keeps GitHub Actions (including SHA-pinned ones) current.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
