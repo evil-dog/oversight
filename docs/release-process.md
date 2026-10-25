@@ -67,10 +67,9 @@ git checkout deps/2026-03
 docker run --rm \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
-  -v /home/evildog/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
   -v oversight-gradle-cache:/root/.gradle \
-  mingc/android-build-box \
-  bash -c 'cd /project && ./gradlew assembleDebug'
+  oversight-build \
+  ./gradlew assembleDebug
 
 # 4. Commit the fix
 git add <changed files>

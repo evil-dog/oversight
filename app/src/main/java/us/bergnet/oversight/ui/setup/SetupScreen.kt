@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -57,7 +58,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.tv.foundation.lazy.list.TvLazyColumn
 import kotlinx.coroutines.delay
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationValues
@@ -383,7 +383,7 @@ private fun LeftPanel(
             text = "OverSight", color = Accent, fontSize = 22.sp,
             fontWeight = FontWeight.Bold, modifier = Modifier.padding(16.dp)
         )
-        TvLazyColumn(
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {

@@ -14,7 +14,7 @@ val computedVersionCode = releaseVersion
 
 android {
     namespace = "us.bergnet.oversight"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "us.bergnet.oversight"
@@ -68,48 +68,50 @@ android {
 
 dependencies {
     // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2026.05.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.09.00")
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.activity:activity-compose:1.13.0")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
-    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.11.0")
 
     // TV Compose
-    implementation("androidx.tv:tv-foundation:1.0.0-alpha11")
     implementation("androidx.tv:tv-material:1.1.0")
 
     // Ktor Server
-    implementation("io.ktor:ktor-server-netty:3.5.0")
-    implementation("io.ktor:ktor-server-content-negotiation:3.5.0")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.5.0")
-    implementation("io.ktor:ktor-server-cors:3.5.0")
+    implementation("io.ktor:ktor-server-netty:3.6.0") {
+        // Ktor 3.6+ pulls in HTTP/3 with desktop-only QUIC native jars (linux/osx/windows)
+        exclude(group = "io.netty", module = "netty-codec-native-quic")
+    }
+    implementation("io.ktor:ktor-server-content-negotiation:3.6.0")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
+    implementation("io.ktor:ktor-server-cors:3.6.0")
 
     // Serialization
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
 
     // Icons (MDI via mikepenz Iconics)
-    implementation("com.mikepenz:iconics-core:5.5.0")
+    implementation("com.mikepenz:iconics-core:5.6.0")
     implementation("com.mikepenz:community-material-typeface:7.0.96.2-kotlin@aar")
 
     // Images (Coil)
     implementation("io.coil-kt:coil-compose:2.7.0")
 
     // Video (Media3/ExoPlayer)
-    implementation("androidx.media3:media3-exoplayer:1.10.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.10.1")
-    implementation("androidx.media3:media3-exoplayer-dash:1.10.1")
-    implementation("androidx.media3:media3-exoplayer-rtsp:1.10.1")
-    implementation("androidx.media3:media3-ui:1.10.1")
+    implementation("androidx.media3:media3-exoplayer:1.11.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.11.1")
+    implementation("androidx.media3:media3-exoplayer-rtsp:1.11.1")
+    implementation("androidx.media3:media3-ui:1.11.1")
 
     // DataStore
-    implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation("androidx.datastore:datastore-preferences:1.3.0")
 
     // Core
-    implementation("androidx.core:core-ktx:1.18.0")
-    implementation("androidx.appcompat:appcompat:1.7.1")
+    implementation("androidx.core:core-ktx:1.19.1")
+    implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("androidx.leanback:leanback:1.2.0")
 
     // Coroutines

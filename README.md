@@ -25,17 +25,19 @@ An Android TV application that displays a persistent, configurable overlay for c
 
 ## Build & Install
 
-Building requires Docker with the `mingc/android-build-box` image.
+Building requires Docker. Build the image once (Temurin JDK 17 + Android SDK, defined in `docker/Dockerfile`):
+```bash
+docker build -t oversight-build docker/
+```
 
 **Build:**
 ```bash
 docker run --rm \
   -v $(pwd):/project \
   -v ~/.android-docker:/root/.android \
-  -v ~/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
   -v oversight-gradle-cache:/root/.gradle \
-  mingc/android-build-box \
-  bash -c 'cd /project && ./gradlew assembleDebug'
+  oversight-build \
+  ./gradlew assembleDebug
 ```
 
 The named volume `oversight-gradle-cache` persists Gradle dependencies between builds, making incremental builds significantly faster. Use `./gradlew clean assembleDebug` only when you need to force a full rebuild.
@@ -45,7 +47,7 @@ The named volume `oversight-gradle-cache` persists Gradle dependencies between b
 docker run --rm --network host \
   -v $(pwd):/project \
   -v ~/.android-docker:/root/.android \
-  mingc/android-build-box \
+  oversight-build \
   bash -c 'adb connect <DEVICE_IP>:5555 && sleep 2 && adb install -r /project/app/build/outputs/apk/debug/app-debug.apk'
 ```
 

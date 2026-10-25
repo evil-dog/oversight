@@ -2,15 +2,19 @@
 
 ## Build & Deploy
 
+**Build image** (`docker/Dockerfile`: Temurin JDK 17 + Android SDK, matching CI). Rebuild after changing SDK versions in the Dockerfile:
+```bash
+docker build -t oversight-build docker/
+```
+
 **Build** (run from the `oversight/` directory):
 ```bash
 docker run --rm \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
-  -v /home/evildog/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
   -v oversight-gradle-cache:/root/.gradle \
-  mingc/android-build-box \
-  bash -c 'cd /project && ./gradlew assembleDebug'
+  oversight-build \
+  ./gradlew assembleDebug
 ```
 
 **Build (clean, use only when needed to fix stale output):**
@@ -18,10 +22,9 @@ docker run --rm \
 docker run --rm \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
-  -v /home/evildog/.android-docker/debug.keystore:/opt/android-sdk/.android/debug.keystore \
   -v oversight-gradle-cache:/root/.gradle \
-  mingc/android-build-box \
-  bash -c 'cd /project && ./gradlew clean assembleDebug'
+  oversight-build \
+  ./gradlew clean assembleDebug
 ```
 
 **Deploy:**
@@ -29,11 +32,13 @@ docker run --rm \
 docker run --rm --network host \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
-  mingc/android-build-box \
+  oversight-build \
   bash -c 'adb connect 192.168.24.119:5555 && sleep 2 && adb install -r /project/app/build/outputs/apk/debug/app-debug.apk'
 ```
 
-**Keystore note:** Must be mounted at BOTH `/root/.android/` (ADB keys) AND `/opt/android-sdk/.android/debug.keystore` (Gradle signing). The persistent keystore lives at `/home/evildog/.android-docker/debug.keystore` (100-year validity).
+**Keystore note:** `/home/evildog/.android-docker` is mounted at `/root/.android/` and provides both the ADB keys and the persistent `debug.keystore` used for Gradle signing (100-year validity).
+
+**SDK note:** If AGP or a library requires a newer `compileSdk` or build-tools, bump `COMPILE_SDK` / `BUILD_TOOLS` in `docker/Dockerfile` and rebuild the image — packages AGP auto-downloads at build time are lost when the container exits.
 
 **Device:** Shield TV at `192.168.24.119:5555`, API on port `5001`.
 
