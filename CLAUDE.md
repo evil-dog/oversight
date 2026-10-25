@@ -149,3 +149,15 @@ Use `aspectRatio(16f / 9f)` with `fillMaxWidth()` for video containers instead o
 ./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.119 5001
 PAUSE=0 ./scripts/test_api.sh         # API-only, skip visual prompts
 ```
+
+### UI Snapshots (no device needed)
+Compose UI renders to PNG on the JVM via Robolectric + Roborazzi (`app/src/test/java/us/bergnet/oversight/ui/UiSnapshots.kt`). Output: `app/build/outputs/roborazzi/*.png` at Shield resolution (1920x1080 = `w960dp-h540dp-land-xhdpi`). Read the PNGs to verify UI changes visually.
+```bash
+docker run --rm -v $(pwd):/project -v /home/evildog/.android-docker:/root/.android \
+  -v oversight-gradle-cache:/root/.gradle oversight-build ./gradlew recordRoborazziDebug
+```
+- `OverlayContent` and `SetupScreen` read `OverlayStateStore` directly — set store state in the test before `setContent`. `@Before` resets the singleton.
+- Clock is pinned with a quoted-literal format (`"'9:41 PM'"`) so renders are stable.
+- Iconics fonts must be registered in `@Before` (`Iconics.init` + `registerFont(CommunityMaterial)`); on device this happens via androidx.startup, which Robolectric doesn't run.
+- Coil network images won't load in tests; prefer `mdi:` icons in sample data.
+- JVM unit tests run with `./gradlew testDebugUnitTest`.
