@@ -1,5 +1,6 @@
 package us.bergnet.oversight.server
 
+import android.content.Context
 import android.util.Log
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -41,15 +42,9 @@ class HttpServer(
         }
         try {
             server = embeddedServer(Netty, port = port) {
-                install(ContentNegotiation) {
-                    json(json)
-                }
+                apiModule(service)
                 routing {
-                    notifyRoutes()
-                    settingsRoutes(service)
-                    overlayRoutes()
                     controlRoutes(service)
-                    layoutRoutes()
                 }
             }.also {
                 it.start(wait = false)
@@ -68,5 +63,18 @@ class HttpServer(
         } catch (e: Exception) {
             Log.e(TAG, "Failed to stop HTTP server", e)
         }
+    }
+}
+
+/** Everything except the service-control routes, so tests can run the API without an [OverlayService]. */
+fun Application.apiModule(context: Context) {
+    install(ContentNegotiation) {
+        json(HttpServer.json)
+    }
+    routing {
+        notifyRoutes()
+        settingsRoutes(context)
+        overlayRoutes()
+        layoutRoutes()
     }
 }

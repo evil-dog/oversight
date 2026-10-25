@@ -122,6 +122,7 @@ dependencies {
     testImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("io.ktor:ktor-server-test-host:3.6.0")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
