@@ -197,10 +197,10 @@ fun SetupScreen(
         leftActive = false
         dialog = when (id) {
             SId.HOT_CORNER -> DialogState.Selector(id, "Hot Corner", cornerLabels, cornerIdx)
-            SId.CLOCK_VISIBILITY -> DialogState.Slider(id, "Clock Visibility", clockVisibility, 0..100, 5, "%")
-            SId.DIMMER -> DialogState.Slider(id, "Screen Dimmer", dimmer, 0..95, 5, "%")
-            SId.NOTIFICATION_DURATION -> DialogState.Slider(id, "Duration", duration, 3..30, 1, "s")
-            SId.FIXED_VISIBILITY -> DialogState.Slider(id, "Fixed Visibility", fixedVisibility, 0..100, 5, "%")
+            SId.CLOCK_VISIBILITY -> DialogState.Slider(id, "Clock Visibility", clockVisibility, OverlayValues.VALID_CLOCK_VISIBILITY, 5, "%")
+            SId.DIMMER -> DialogState.Slider(id, "Screen Dimmer", dimmer, OverlayValues.VALID_OVERLAY_VISIBILITY, 5, "%")
+            SId.NOTIFICATION_DURATION -> DialogState.Slider(id, "Duration", duration, NotificationValues.VALID_DURATION, 1, "s")
+            SId.FIXED_VISIBILITY -> DialogState.Slider(id, "Fixed Visibility", fixedVisibility, NotificationValues.VALID_FIXED_VISIBILITY, 5, "%")
             SId.DEVICE_NAME -> DialogState.TextInput(id, "Device Name", deviceName, false)
             SId.REMOTE_PORT -> DialogState.TextInput(id, "Remote Port", port.toString(), true)
             else -> null

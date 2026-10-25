@@ -46,7 +46,7 @@ class HttpServer(
                 }
                 routing {
                     notifyRoutes()
-                    settingsRoutes()
+                    settingsRoutes(service)
                     overlayRoutes()
                     controlRoutes(service)
                     layoutRoutes()

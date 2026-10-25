@@ -16,13 +16,13 @@ data class InfoValues(
         // Merge overlay values
         other.overlay?.let { newOverlay ->
             newOverlay.overlayVisibility?.let { vis ->
-                if (vis in 0..95) {
+                if (vis in OverlayValues.VALID_OVERLAY_VISIBILITY) {
                     val current = result.overlay ?: OverlayValues()
                     result = result.copy(overlay = current.copy(overlayVisibility = vis))
                 }
             }
             newOverlay.clockOverlayVisibility?.let { vis ->
-                if (vis in 0..100) {
+                if (vis in OverlayValues.VALID_CLOCK_VISIBILITY) {
                     val current = result.overlay ?: OverlayValues()
                     result = result.copy(overlay = current.copy(clockOverlayVisibility = vis))
                 }
@@ -67,16 +67,20 @@ data class InfoValues(
                 result = result.copy(notifications = current.copy(displayNotifications = display))
             }
             newNotifs.notificationDuration?.let { duration ->
-                val current = result.notifications ?: NotificationValues()
-                result = result.copy(notifications = current.copy(notificationDuration = duration))
+                if (duration in NotificationValues.VALID_DURATION) {
+                    val current = result.notifications ?: NotificationValues()
+                    result = result.copy(notifications = current.copy(notificationDuration = duration))
+                }
             }
             newNotifs.displayFixedNotifications?.let { display ->
                 val current = result.notifications ?: NotificationValues()
                 result = result.copy(notifications = current.copy(displayFixedNotifications = display))
             }
             newNotifs.fixedNotificationsVisibility?.let { vis ->
-                val current = result.notifications ?: NotificationValues()
-                result = result.copy(notifications = current.copy(fixedNotificationsVisibility = vis))
+                if (vis in NotificationValues.VALID_FIXED_VISIBILITY) {
+                    val current = result.notifications ?: NotificationValues()
+                    result = result.copy(notifications = current.copy(fixedNotificationsVisibility = vis))
+                }
             }
         }
 
@@ -97,7 +101,38 @@ data class InfoValues(
         notificationLayoutName = notifications?.notificationLayoutName,
         displayFixedNotifications = notifications?.displayFixedNotifications ?: true,
         fixedNotificationsVisibility = notifications?.fixedNotificationsVisibility ?: 100,
+        displayDebug = settings?.displayDebug ?: false,
     )
+
+    /**
+     * These values with defaults filled in, for API responses. Stored values stay nullable so partial
+     * updates merge; [NotificationValues.notificationLayoutName] stays null when unset, meaning the
+     * layout list's selected layout is used.
+     */
+    fun withDefaults(status: StatusValues? = this.status): InfoValues {
+        val e = effective()
+        return InfoValues(
+            overlay = OverlayValues(
+                overlayVisibility = e.overlayVisibility,
+                clockOverlayVisibility = e.clockVisibility,
+                hotCorner = e.hotCorner.restApiName,
+            ),
+            settings = SettingsValues(
+                deviceName = e.deviceName,
+                remotePort = e.remotePort,
+                displayDebug = e.displayDebug,
+                pixelShift = e.pixelShift,
+            ),
+            notifications = NotificationValues(
+                displayNotifications = e.displayNotifications,
+                notificationLayoutName = e.notificationLayoutName,
+                notificationDuration = e.notificationDuration,
+                displayFixedNotifications = e.displayFixedNotifications,
+                fixedNotificationsVisibility = e.fixedNotificationsVisibility,
+            ),
+            status = status,
+        )
+    }
 }
 
 data class EffectiveSettings(
@@ -113,4 +148,5 @@ data class EffectiveSettings(
     val notificationLayoutName: String?,
     val displayFixedNotifications: Boolean,
     val fixedNotificationsVisibility: Int,
+    val displayDebug: Boolean,
 )

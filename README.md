@@ -68,8 +68,16 @@ The HTTP server runs on port **5001** by default. All responses use the envelope
 
 ### Settings
 
+Out-of-range values return `400` with a message describing the valid range. `/set/*` routes respond with the full device info (same shape as `GET /info`, without `deviceId`) after applying the update.
+
 #### `GET /info`
-Returns current device state and `deviceId`.
+Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Unset settings are reported with their defaults; `notificationLayoutName` is `null` when no layout has been set this way, meaning the selected layout from `GET /` is used.
+
+`status`:
+- `version` — app `versionCode` (`major*10000 + minor*100 + patch`, e.g. `302` for v0.3.2)
+- `isScreenOn` — whether the TV screen is on
+- `permissionState` — `GRANTED` when the overlay permission is granted, otherwise `DENIED_SETTING_AVAILABLE`
+- `batteryOptimizationState` — `ENABLED` when the app is exempt from battery optimization, otherwise `SKIPPED`
 
 #### `POST /set/overlay`
 ```json
@@ -94,7 +102,7 @@ Returns current device state and `deviceId`.
 }
 ```
 - `notificationLayoutName` — `Default` | `Minimalist` | `Only Icon` (or any custom layout name)
-- `notificationDuration` — default popup display time in seconds
+- `notificationDuration` — default popup display time in seconds, `3`–`30`
 - `fixedNotificationsVisibility` — badge transparency, `0`–`100` (100 = fully visible)
 
 #### `POST /set/settings`
@@ -155,13 +163,16 @@ Create or update a persistent badge. All fields except `id` are optional for upd
 ```
 - `shape` — `circle` | `rounded` | `rectangular`
 - `size` — `small` | `normal` | `big`
-- `expiration` — human-readable duration string: `30s`, `5m`, `1h`, `2d`
+- `expiration` — a duration from now, combining units `y` `w` `d` `h` `m` `s` (e.g. `30s`, `5m`, `1d12h`), a plain number of seconds (`90`), or a Unix timestamp in seconds or milliseconds
 - `expirationEpoch` — Unix epoch in **milliseconds**; takes priority over `expiration`
 - `showDuration` — seconds to show text before collapsing to icon-only
 - `collapseDuration` — seconds to stay collapsed before re-expanding (requires `repeatExpand: true`)
 - `repeatExpand` — whether to cycle expand/collapse continuously
 - `text` also accepts `message` or `title` as aliases
 - `messageColor` also accepts `textColor` as an alias
+
+#### `DELETE /notify_fixed/{id}`
+Remove a fixed notification immediately. Returns `404` if no badge has that `id`.
 
 #### `GET /fixed_notifications`
 Returns all active (non-expired, visible) fixed notifications.

@@ -66,6 +66,15 @@ fun Routing.notifyRoutes() {
         }
     }
 
+    delete("/notify_fixed/{id}") {
+        val id = call.parameters["id"].orEmpty()
+        if (OverlayStateStore.removeFixedNotification(id)) {
+            call.respond(ApiResponse.success("Fixed notification removed"))
+        } else {
+            call.respond(HttpStatusCode.NotFound, ApiResponse.error("No fixed notification with id '$id'"))
+        }
+    }
+
     get("/fixed_notifications") {
         val active = OverlayStateStore.getActiveFixedNotifications()
         val json = HttpServer.json.encodeToJsonElement(

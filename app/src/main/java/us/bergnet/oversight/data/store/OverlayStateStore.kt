@@ -107,8 +107,15 @@ object OverlayStateStore {
     fun getFixedNotification(id: String): FixedNotification? =
         _fixedNotifications.value.firstOrNull { it.id == id }
 
-    fun removeFixedNotification(id: String) {
-        _fixedNotifications.update { current -> current.filter { it.id != id } }
+    /** Returns false if no fixed notification had [id]. */
+    fun removeFixedNotification(id: String): Boolean {
+        var removed = false
+        _fixedNotifications.update { current ->
+            val filtered = current.filter { it.id != id }
+            removed = filtered.size != current.size
+            filtered
+        }
+        return removed
     }
 
     fun removeExpiredFixedNotifications() {

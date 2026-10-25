@@ -2,6 +2,7 @@ package us.bergnet.oversight.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -12,6 +13,7 @@ import us.bergnet.oversight.data.model.NotificationLayout
 import us.bergnet.oversight.data.model.NotificationLayoutList
 import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayCustomization
+import us.bergnet.oversight.data.model.OverlayValues
 import us.bergnet.oversight.data.model.ReceivedNotification
 import us.bergnet.oversight.data.model.SettingsValues
 import us.bergnet.oversight.data.model.enums.FontWeightEnum
@@ -138,5 +140,52 @@ class StateMergeTest {
         // Re-enabling must not resurrect the old toast
         OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(displayNotifications = true)))
         assertNull(OverlayStateStore.currentNotification.value)
+    }
+
+    // --- Range validation ---
+
+    @Test
+    fun outOfRangeNotificationValuesAreRejected() {
+        assertNotNull(NotificationValues(notificationDuration = 2).validate())
+        assertNotNull(NotificationValues(notificationDuration = 31).validate())
+        assertNotNull(NotificationValues(fixedNotificationsVisibility = 101).validate())
+        assertNull(NotificationValues(notificationDuration = 3, fixedNotificationsVisibility = 0).validate())
+        assertNull(NotificationValues().validate())
+
+        OverlayStateStore.updateInfoValues(InfoValues(notifications = NotificationValues(notificationDuration = 999)))
+        assertNull(OverlayStateStore.infoValues.value.notifications?.notificationDuration)
+    }
+
+    @Test
+    fun outOfRangeOverlayValuesAreRejected() {
+        assertNotNull(OverlayValues(overlayVisibility = 96).validate())
+        assertNotNull(OverlayValues(clockOverlayVisibility = -1).validate())
+        assertNotNull(OverlayValues(hotCorner = "middle").validate())
+        assertNull(OverlayValues(overlayVisibility = 95, clockOverlayVisibility = 100, hotCorner = "bottom_start").validate())
+    }
+
+    // --- API responses ---
+
+    @Test
+    fun withDefaultsFillsUnsetFieldsButKeepsLayoutNameUnset() {
+        OverlayStateStore.updateInfoValues(InfoValues(settings = SettingsValues(deviceName = "Den")))
+        val info = OverlayStateStore.infoValues.value.withDefaults()
+        assertEquals("Den", info.settings?.deviceName)
+        assertEquals(5001, info.settings?.remotePort)
+        assertEquals(false, info.settings?.displayDebug)
+        assertEquals("top_end", info.overlay?.hotCorner)
+        assertEquals(8, info.notifications?.notificationDuration)
+        assertEquals(100, info.notifications?.fixedNotificationsVisibility)
+        assertNull(info.notifications?.notificationLayoutName)
+        // Stored state is untouched
+        assertNull(OverlayStateStore.infoValues.value.overlay)
+    }
+
+    @Test
+    fun removeFixedNotificationReportsWhetherItExisted() {
+        OverlayStateStore.upsertFixedNotification(decodeFixed("""{"id":"a","text":"hi"}"""))
+        assertTrue(OverlayStateStore.removeFixedNotification("a"))
+        assertNull(OverlayStateStore.getFixedNotification("a"))
+        assertFalse(OverlayStateStore.removeFixedNotification("a"))
     }
 }

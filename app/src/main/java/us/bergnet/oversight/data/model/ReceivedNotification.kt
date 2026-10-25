@@ -7,7 +7,6 @@ import java.util.UUID
 @Serializable
 data class ReceivedNotification(
     val id: String = UUID.randomUUID().toString(),
-    val groupId: String? = null,
     val title: String? = null,
     val message: String? = null,
     val source: String? = null,
