@@ -8,4 +8,9 @@ data class SettingsValues(
     val remotePort: Int? = null,
     val displayDebug: Boolean? = null,
     val pixelShift: Boolean? = null
-)
+) {
+    companion object {
+        /** Unprivileged ports only; binding below 1024 needs root. */
+        val VALID_PORTS = 1024..65535
+    }
+}

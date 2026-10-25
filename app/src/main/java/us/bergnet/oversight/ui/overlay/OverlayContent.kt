@@ -53,7 +53,7 @@ fun OverlayContent() {
     val fixedNotificationsAlpha = (infoValues.notifications?.fixedNotificationsVisibility ?: 100) / 100f
 
     val activeFixed = if (displayFixedNotifications) {
-        fixedNotifications.filter { !it.isExpired() && it.visible && !it.isEmpty() }
+        fixedNotifications.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
     } else {
         emptyList()
     }

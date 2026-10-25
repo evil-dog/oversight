@@ -41,8 +41,10 @@ data class InfoValues(
                 result = result.copy(settings = current.copy(deviceName = name.trim()))
             }
             newSettings.remotePort?.let { port ->
-                val current = result.settings ?: SettingsValues()
-                result = result.copy(settings = current.copy(remotePort = port))
+                if (port in SettingsValues.VALID_PORTS) {
+                    val current = result.settings ?: SettingsValues()
+                    result = result.copy(settings = current.copy(remotePort = port))
+                }
             }
             newSettings.displayDebug?.let { debug ->
                 val current = result.settings ?: SettingsValues()

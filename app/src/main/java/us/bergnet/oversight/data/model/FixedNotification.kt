@@ -15,7 +15,8 @@ import java.util.UUID
 @Serializable
 data class FixedNotification(
     val id: String = UUID.randomUUID().toString(),
-    val visible: Boolean = true,
+    // Nullable so partial updates don't reset it; null means visible. Use isVisible().
+    val visible: Boolean? = null,
     val icon: String? = null,
     @JsonNames("message", "title")
     val text: String? = null,
@@ -39,7 +40,8 @@ data class FixedNotification(
         val epoch = expirationEpoch ?: expiration?.let {
             ExpirationParser.parse(it, now)
         }
-        return copy(receivedTime = receivedTime ?: now, expirationEpoch = epoch)
+        // Stored notifications always carry an explicit visible so API responses never report null
+        return copy(receivedTime = receivedTime ?: now, expirationEpoch = epoch, visible = isVisible())
     }
 
     fun isExpired(): Boolean {
@@ -51,15 +53,18 @@ data class FixedNotification(
         return icon.isNullOrBlank() && text.isNullOrBlank()
     }
 
+    fun isVisible(): Boolean = visible != false
+
     /**
      * Merge incoming partial update into this notification.
      * Null fields in [other] keep this notification's existing values.
      * Non-null fields in [other] override.
-     * [visible] is always taken from [other] since it has a non-null default.
+     * A new [expiration] without an explicit [expirationEpoch] clears the stored epoch
+     * so [withReceivedTime] recomputes it relative to now.
      */
     fun mergeWith(other: FixedNotification): FixedNotification {
         return copy(
-            visible = other.visible,
+            visible = other.visible ?: visible,
             icon = other.icon ?: icon,
             text = other.text ?: text,
             messageColor = other.messageColor ?: messageColor,
@@ -69,7 +74,8 @@ data class FixedNotification(
             shape = other.shape ?: shape,
             size = other.size ?: size,
             expiration = other.expiration ?: expiration,
-            expirationEpoch = other.expirationEpoch ?: expirationEpoch,
+            expirationEpoch = other.expirationEpoch
+                ?: if (other.expiration != null) null else expirationEpoch,
             showDuration = other.showDuration ?: showDuration,
             collapseDuration = other.collapseDuration ?: collapseDuration,
             repeatExpand = other.repeatExpand ?: repeatExpand

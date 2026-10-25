@@ -8,10 +8,30 @@ import us.bergnet.oversight.data.model.*
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.server.HttpServer
 
+// Paths that have their own routes; "/{filter}" must not capture them.
+private val reservedPaths = setOf(
+    "info", "set", "notify", "notify_fixed", "fixed_notifications",
+    "overlay_customization", "screen_on", "restart_service"
+)
+
+/** Upserts the layout in the request body, makes it active, and responds with the layout list. */
+private suspend fun RoutingContext.setLayout() {
+    try {
+        val body = call.receiveText()
+        val layout = HttpServer.json.decodeFromString<NotificationLayout>(body)
+        OverlayStateStore.upsertLayout(layout, select = true)
+        val json = HttpServer.json.encodeToJsonElement(
+            NotificationLayoutList.serializer(),
+            OverlayStateStore.layoutList.value
+        )
+        call.respond(ApiResponse.success("Layout set", json))
+    } catch (e: Exception) {
+        call.respondError(e)
+    }
+}
+
 fun Routing.layoutRoutes() {
-    // These are mounted under root, so they need to be careful about path conflicts.
-    // The original app uses "/" and "/{filter?}" for layout operations.
-    // We prefix with /layouts to avoid conflicts.
+    // TvOverlay-compatible layout endpoints mounted at the root: "/" and "/{filter}".
 
     get("/") {
         val layoutList = OverlayStateStore.layoutList.value
@@ -24,11 +44,7 @@ fun Routing.layoutRoutes() {
 
     get("/{filter}") {
         val filter = call.parameters["filter"] ?: ""
-        // Avoid capturing other routes
-        if (filter in listOf("notify", "notify_fixed", "fixed_notifications",
-                "overlay_customization", "screen_on", "restart_service", "set")) {
-            return@get
-        }
+        if (filter in reservedPaths) return@get
         val layoutList = OverlayStateStore.layoutList.value
         val filtered = if (filter.isNotEmpty()) {
             layoutList.copy(
@@ -46,41 +62,10 @@ fun Routing.layoutRoutes() {
         call.respond(ApiResponse.success("Filtered layouts", json))
     }
 
-    post("/") {
-        try {
-            val body = call.receiveText()
-            val layout = HttpServer.json.decodeFromString<NotificationLayout>(body)
-            OverlayStateStore.upsertLayout(layout, select = true)
-            OverlayStateStore.updateInfoValues(
-                InfoValues(notifications = NotificationValues(notificationLayoutName = layout.name))
-            )
-            val json = HttpServer.json.encodeToJsonElement(
-                NotificationLayoutList.serializer(),
-                OverlayStateStore.layoutList.value
-            )
-            call.respond(ApiResponse.success("Layout set", json))
-        } catch (e: Exception) {
-            call.respondError(e)
-        }
-    }
+    post("/") { setLayout() }
 
     post("/{filter}") {
-        val filter = call.parameters["filter"] ?: ""
-        if (filter in listOf("notify", "notify_fixed", "fixed_notifications",
-                "overlay_customization", "screen_on", "restart_service", "set")) {
-            return@post
-        }
-        try {
-            val body = call.receiveText()
-            val layout = HttpServer.json.decodeFromString<NotificationLayout>(body)
-            OverlayStateStore.upsertLayout(layout, select = true)
-            val json = HttpServer.json.encodeToJsonElement(
-                NotificationLayoutList.serializer(),
-                OverlayStateStore.layoutList.value
-            )
-            call.respond(ApiResponse.success("Layout set", json))
-        } catch (e: Exception) {
-            call.respondError(e)
-        }
+        if (call.parameters["filter"] in reservedPaths) return@post
+        setLayout()
     }
 }

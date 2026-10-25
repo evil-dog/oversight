@@ -63,8 +63,9 @@ object OverlayStateStore {
     fun getDeviceName(): String =
         _infoValues.value.settings?.deviceName ?: "OverSight Device"
 
+    // Persisted values predate port validation, so re-check here rather than trusting storage
     fun getRemotePort(): Int =
-        _infoValues.value.settings?.remotePort ?: 5001
+        _infoValues.value.settings?.remotePort?.takeIf { it in SettingsValues.VALID_PORTS } ?: 5001
 
     fun getNotificationDuration(): Int =
         _infoValues.value.notifications?.notificationDuration ?: 8
@@ -134,7 +135,7 @@ object OverlayStateStore {
     }
 
     fun getActiveFixedNotifications(): List<FixedNotification> =
-        _fixedNotifications.value.filter { !it.isExpired() && it.visible && !it.isEmpty() }
+        _fixedNotifications.value.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
 
     fun enqueueNotification(notification: ReceivedNotification) {
         if (notification.isEmpty()) return
@@ -193,6 +194,11 @@ object OverlayStateStore {
             val idx = next.indexOfFirst { it.name == layout.name }
             if (idx >= 0) next[idx] = layout else next.add(layout)
             current.copy(list = next, selected = if (select) layout.name else current.selected)
+        }
+        // notificationLayoutName takes precedence over layoutList.selected (see getCurrentLayoutName),
+        // so selecting must update both or the old layout stays active.
+        if (select) {
+            updateInfoValues(InfoValues(notifications = NotificationValues(notificationLayoutName = layout.name)))
         }
     }
 

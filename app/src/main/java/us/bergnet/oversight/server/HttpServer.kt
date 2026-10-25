@@ -7,6 +7,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import us.bergnet.oversight.server.routes.*
 import us.bergnet.oversight.service.OverlayService
@@ -18,8 +19,12 @@ class HttpServer(
     companion object {
         private const val TAG = "HttpServer"
 
+        @OptIn(ExperimentalSerializationApi::class)
         val json = Json {
             ignoreUnknownKeys = true
+            // README documents lowercase enum values ("bold", "semibold"); serial names are "Bold", "SemiBold".
+            // Without this, coerceInputValues silently turns them into null.
+            decodeEnumsCaseInsensitive = true
             isLenient = true
             encodeDefaults = true
             prettyPrint = false

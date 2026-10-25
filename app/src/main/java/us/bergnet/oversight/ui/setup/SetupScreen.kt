@@ -129,7 +129,7 @@ private data class SettingMeta(val title: String, val description: String, val i
 private val settingMeta = mapOf(
     SId.ABOUT to SettingMeta("About", "Status, permissions, and network info", "information-outline"),
     SId.DEVICE_NAME to SettingMeta("Device Name", "The name used to identify this device on the network and via mDNS discovery.", "rename-box"),
-    SId.REMOTE_PORT to SettingMeta("Remote Port", "The port number for the REST API server. Changing this requires a service restart.", "network-outline"),
+    SId.REMOTE_PORT to SettingMeta("Remote Port", "The port number for the REST API server (1024-65535). The server restarts on the new port automatically.", "network-outline"),
     SId.HOT_CORNER to SettingMeta("Hot Corner", "Corner of the screen where the clock and fixed notifications are anchored.", "dock-window"),
     SId.CLOCK_VISIBILITY to SettingMeta("Clock Visibility", "Opacity of the clock overlay. Set to 0% to hide the clock entirely.", "eye-outline"),
     SId.DIMMER to SettingMeta("Screen Dimmer", "Dims the entire screen with a dark overlay. Useful for reducing brightness at night.", "brightness-6"),

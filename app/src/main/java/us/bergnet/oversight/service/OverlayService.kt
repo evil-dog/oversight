@@ -15,7 +15,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import us.bergnet.oversight.R
 import us.bergnet.oversight.ui.overlay.OverlayContent
 import us.bergnet.oversight.data.repository.PersistenceManager
@@ -93,6 +98,8 @@ class OverlayService : Service() {
                     it.observeSettingsChanges(serviceScope)
                 }
 
+                observePortChanges()
+
                 OverlayStateStore.setServiceRunning(true)
                 Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
             }
@@ -128,15 +135,43 @@ class OverlayService : Service() {
         OverlayStateStore.setServiceRunning(false)
     }
 
+    /**
+     * Rebind the HTTP server when remotePort changes so it matches what mDNS advertises.
+     * The in-flight request that changed the port completes within the server's stop grace period.
+     */
+    private fun observePortChanges() {
+        serviceScope.launch(Dispatchers.Main) {
+            OverlayStateStore.infoValues
+                .map { OverlayStateStore.getRemotePort() }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { port ->
+                    Log.d(TAG, "Remote port changed to $port, restarting HTTP server")
+                    val old = httpServer
+                    httpServer = null
+                    httpServer = withContext(Dispatchers.IO) {
+                        old?.stop()
+                        ensureActive() // don't bind a new server if the service is being destroyed
+                        HttpServer(port, this@OverlayService).also { it.start() }
+                    }
+                    getSystemService(NotificationManager::class.java)
+                        .notify(NOTIFICATION_ID, createNotification())
+                }
+        }
+    }
+
     private fun showOverlay() {
         overlayWindowManager?.show {
             OverlayContent()
         }
     }
 
+    // Called from Ktor worker threads
+    @Synchronized
     fun acquireTemporaryWakeLock() {
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
-        wakeLock?.release()
+        // The previous lock usually timed out already; release() on an unheld lock throws "under-locked"
+        releaseWakeLock()
         wakeLock = pm.newWakeLock(
             PowerManager.FULL_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
             "oversight:screen_on"
@@ -145,6 +180,7 @@ class OverlayService : Service() {
         }
     }
 
+    @Synchronized
     private fun releaseWakeLock() {
         wakeLock?.let {
             if (it.isHeld) it.release()

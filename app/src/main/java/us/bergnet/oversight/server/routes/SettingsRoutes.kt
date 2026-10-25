@@ -62,6 +62,15 @@ fun Routing.settingsRoutes() {
         try {
             val body = call.receiveText()
             val settings = HttpServer.json.decodeFromString<SettingsValues>(body)
+            settings.remotePort?.let { port ->
+                if (port !in SettingsValues.VALID_PORTS) {
+                    call.respond(
+                        HttpStatusCode.BadRequest,
+                        ApiResponse.error("remotePort must be between ${SettingsValues.VALID_PORTS.first} and ${SettingsValues.VALID_PORTS.last}")
+                    )
+                    return@post
+                }
+            }
             OverlayStateStore.updateInfoValues(InfoValues(settings = settings))
             val result = HttpServer.json.encodeToJsonElement(
                 InfoValues.serializer(),
