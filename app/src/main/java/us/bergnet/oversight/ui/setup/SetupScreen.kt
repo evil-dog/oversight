@@ -137,6 +137,8 @@ private val settingMeta = mapOf(
 fun SetupScreen(
     hasOverlayPermission: Boolean,
     hasBatteryExemption: Boolean,
+    /** False when the device has no working exemption screen; the exemption is then shown as not required. */
+    canRequestBatteryExemption: Boolean,
     onRequestOverlayPermission: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
     onStartService: () -> Unit,
@@ -278,6 +280,7 @@ fun SetupScreen(
                     infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered,
                     deviceId = deviceId, ip = ip,
                     hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
+                    canRequestBatteryExemption = canRequestBatteryExemption,
                     appVersion = appVersion, rightFocus = rightFocus, enabled = leftActive,
                     onNavigateLeft = { try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {} },
                     onToggle = { id ->
@@ -462,7 +465,7 @@ private fun RightPanel(
     selectedItem: SId,
     infoValues: InfoValues,
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
-    hasOverlayPermission: Boolean, hasBatteryExemption: Boolean,
+    hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     onNavigateLeft: () -> Unit,
     onToggle: (SId) -> Unit, onEdit: (SId) -> Unit,
@@ -484,6 +487,7 @@ private fun RightPanel(
         SId.ABOUT -> AboutDetail(
             infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered, deviceId = deviceId, ip = ip,
             hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
+            canRequestBatteryExemption = canRequestBatteryExemption,
             appVersion = appVersion, rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onRequestOverlayPermission = onRequestOverlayPermission,
             onRequestBatteryExemption = onRequestBatteryExemption
@@ -545,7 +549,7 @@ private fun RightPanel(
 private fun AboutDetail(
     infoValues: InfoValues,
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
-    hasOverlayPermission: Boolean, hasBatteryExemption: Boolean,
+    hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     backToLeft: Modifier,
     onRequestOverlayPermission: () -> Unit, onRequestBatteryExemption: () -> Unit
@@ -574,10 +578,15 @@ private fun AboutDetail(
             InfoLine("Device", settings.deviceName, TextPrimary)
             InfoLine("Device ID", deviceId, TextMuted)
             InfoLine("Overlay", if (hasOverlayPermission) "Granted" else "Required", if (hasOverlayPermission) Green else Red)
-            InfoLine("Battery", if (hasBatteryExemption) "Exempt" else "Not Exempt", if (hasBatteryExemption) Green else Orange)
+            when {
+                hasBatteryExemption -> InfoLine("Battery", "Exempt", Green)
+                canRequestBatteryExemption -> InfoLine("Battery", "Not Exempt", Orange)
+                else -> InfoLine("Battery", "Not Required", TextMuted)
+            }
         }
 
-        if (!hasOverlayPermission || !hasBatteryExemption) {
+        val showBatteryButton = !hasBatteryExemption && canRequestBatteryExemption
+        if (!hasOverlayPermission || showBatteryButton) {
             Spacer(modifier = Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (!hasOverlayPermission) {
@@ -588,7 +597,7 @@ private fun AboutDetail(
                         modifier = backToLeft.focusRequester(rightFocus)
                     ) { Text("Grant Overlay", fontSize = 12.sp) }
                 }
-                if (!hasBatteryExemption) {
+                if (showBatteryButton) {
                     Button(
                         onClick = onRequestBatteryExemption,
                         colors = ButtonDefaults.buttonColors(containerColor = Orange),

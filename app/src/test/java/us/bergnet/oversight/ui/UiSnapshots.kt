@@ -246,7 +246,20 @@ class UiSnapshots {
     fun setupScreen_about() {
         capture("setup_about") {
             SetupScreen(
-                hasOverlayPermission = true, hasBatteryExemption = false,
+                hasOverlayPermission = true, hasBatteryExemption = false, canRequestBatteryExemption = true,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                appVersion = "1.2.3"
+            )
+        }
+    }
+
+    /** Google TV and similar: no usable exemption screen, so no button and "Not Required". */
+    @Test
+    fun setupScreen_about_noBatteryScreen() {
+        capture("setup_about_no_battery_screen") {
+            SetupScreen(
+                hasOverlayPermission = true, hasBatteryExemption = false, canRequestBatteryExemption = false,
                 onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
                 onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
                 appVersion = "1.2.3"

@@ -79,6 +79,7 @@ class SetupActivity : ComponentActivity() {
                     SetupScreen(
                         hasOverlayPermission = overlayGranted,
                         hasBatteryExemption = batteryGranted,
+                        canRequestBatteryExemption = canRequestBatteryExemption,
                         onRequestOverlayPermission = { requestOverlayPermission() },
                         onRequestBatteryExemption = { requestBatteryOptimizationExemption() },
                         onStartService = { startOverlayService() },
