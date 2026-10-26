@@ -44,16 +44,21 @@ import us.bergnet.oversight.ui.theme.TextSecondary
 fun OnboardingScreen(
     hasOverlayPermission: Boolean,
     hasBatteryExemption: Boolean,
+    /** False when the device has no working exemption screen; the battery step is then skipped. */
+    canRequestBatteryExemption: Boolean,
     onRequestOverlayPermission: () -> Unit,
     onRequestBatteryExemption: () -> Unit,
     onComplete: () -> Unit
 ) {
     var currentStep by remember { mutableIntStateOf(0) }
+    val stepCount = if (canRequestBatteryExemption) 3 else 2
+    // Leaving the overlay step either goes to the battery step or, when it's skipped, finishes
+    val afterOverlayStep = { if (canRequestBatteryExemption) currentStep = 2 else onComplete() }
 
     // Auto-advance when a permission is granted (e.g. on returning from Settings). Runs as effects:
     // state writes and onComplete() during composition can repeat on every recomposition.
     LaunchedEffect(currentStep, hasOverlayPermission) {
-        if (currentStep == 1 && hasOverlayPermission) currentStep = 2
+        if (currentStep == 1 && hasOverlayPermission) afterOverlayStep()
     }
     LaunchedEffect(currentStep, hasBatteryExemption) {
         if (currentStep == 2 && hasBatteryExemption) onComplete()
@@ -76,7 +81,7 @@ fun OnboardingScreen(
                 0 -> WelcomeStep(onNext = { currentStep = 1 })
                 1 -> OverlayPermissionStep(
                     onGrant = onRequestOverlayPermission,
-                    onSkip = { currentStep = 2 }
+                    onSkip = afterOverlayStep
                 )
                 2 -> BatteryStep(
                     onRequest = onRequestBatteryExemption,
@@ -88,7 +93,7 @@ fun OnboardingScreen(
 
             // Step indicator
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) { idx ->
+                repeat(stepCount) { idx ->
                     Box(
                         modifier = Modifier
                             .width(if (idx == currentStep) 24.dp else 8.dp)

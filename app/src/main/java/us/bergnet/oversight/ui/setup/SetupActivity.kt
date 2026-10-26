@@ -26,6 +26,8 @@ class SetupActivity : ComponentActivity() {
 
     private val hasOverlayPermission = mutableStateOf(false)
     private val hasBatteryExemption = mutableStateOf(false)
+    // Fixed for the device, so resolve once rather than on every resume
+    private val canRequestBatteryExemption by lazy { usableIntent(batteryExemptionIntents()) != null }
     private val onboardingComplete = mutableStateOf<Boolean?>(null) // null = loading
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,6 +61,7 @@ class SetupActivity : ComponentActivity() {
                     OnboardingScreen(
                         hasOverlayPermission = overlayGranted,
                         hasBatteryExemption = batteryGranted,
+                        canRequestBatteryExemption = canRequestBatteryExemption,
                         onRequestOverlayPermission = { requestOverlayPermission() },
                         onRequestBatteryExemption = { requestBatteryOptimizationExemption() },
                         onComplete = {
@@ -114,42 +117,55 @@ class SetupActivity : ComponentActivity() {
     }
 
     private fun requestOverlayPermission() {
-        // Many Android TV builds don't ship the overlay permission screen, or only the
-        // un-targeted list version; fall back rather than crash with ActivityNotFoundException.
-        val candidates = listOf(
-            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
-            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+        launchSettingsOrShowAdbHint(
+            listOf(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
+            ),
+            unavailableMessage = "Overlay settings aren't available on this device. Grant via ADB:\n" +
+                "adb shell appops set $packageName SYSTEM_ALERT_WINDOW allow",
         )
-        val launched = candidates.any { intent ->
+    }
+
+    private fun requestBatteryOptimizationExemption() {
+        val pm = getSystemService(PowerManager::class.java)
+        if (pm.isIgnoringBatteryOptimizations(packageName)) return
+        launchSettingsOrShowAdbHint(
+            batteryExemptionIntents(),
+            unavailableMessage = "Battery optimization settings aren't available on this device. Exempt via ADB:\n" +
+                "adb shell dumpsys deviceidle whitelist +$packageName",
+        )
+    }
+
+    private fun batteryExemptionIntents() = listOf(
+        @Suppress("BatteryLife")
+        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
+        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+    )
+
+    /**
+     * The first candidate whose settings screen really exists. Many Android TV builds don't ship
+     * these screens at all, and Google TV routes some of them to TvSettings' EmptyStubActivity,
+     * which closes immediately so the request appears to do nothing.
+     */
+    private fun usableIntent(candidates: List<Intent>): Intent? = candidates.firstOrNull { intent ->
+        val target = packageManager.resolveActivity(intent, 0)?.activityInfo
+        target != null && !target.name.endsWith("EmptyStubActivity")
+    }
+
+    /** Starts the first usable settings screen in [candidates], else shows [unavailableMessage]. */
+    private fun launchSettingsOrShowAdbHint(candidates: List<Intent>, unavailableMessage: String) {
+        val launched = usableIntent(candidates)?.let { intent ->
             try {
                 startActivity(intent)
                 true
             } catch (_: ActivityNotFoundException) {
                 false
             }
-        }
+        } ?: false
         if (!launched) {
-            Log.w(TAG, "No overlay permission settings screen on this device")
-            Toast.makeText(
-                this,
-                "Overlay settings aren't available on this device. Grant via ADB:\n" +
-                    "adb shell appops set $packageName SYSTEM_ALERT_WINDOW allow",
-                Toast.LENGTH_LONG
-            ).show()
-        }
-    }
-
-    private fun requestBatteryOptimizationExemption() {
-        val pm = getSystemService(PowerManager::class.java)
-        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
-            try {
-                @Suppress("BatteryLife")
-                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                    data = Uri.parse("package:$packageName")
-                }
-                startActivity(intent)
-            } catch (_: Exception) {
-            }
+            Log.w(TAG, "No usable settings screen for ${candidates.first().action}")
+            Toast.makeText(this, unavailableMessage, Toast.LENGTH_LONG).show()
         }
     }
 

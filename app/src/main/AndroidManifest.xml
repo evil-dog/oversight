@@ -10,6 +10,24 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- SetupActivity resolves these before launching to detect missing or stub settings screens -->
+    <queries>
+        <intent>
+            <action android:name="android.settings.action.MANAGE_OVERLAY_PERMISSION" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.action.MANAGE_OVERLAY_PERMISSION" />
+            <data android:scheme="package" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+            <data android:scheme="package" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS" />
+        </intent>
+    </queries>
+
     <uses-feature
         android:name="android.hardware.touchscreen"
         android:required="false" />

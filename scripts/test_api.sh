@@ -137,6 +137,37 @@ do_post_expect_fail() {
     fi
 }
 
+# Run a DELETE and check the HTTP status code.
+# Usage: do_delete PATH EXPECTED_STATUS
+do_delete() {
+    local path="$1"
+    local expected="$2"
+    echo "  DELETE ${path} (expect ${expected})"
+    local response status
+    response=$(curl -s -w '\n%{http_code}' -X DELETE "${BASE}${path}")
+    status=$(echo "$response" | tail -n1)
+    echo "  Response: $(echo "$response" | sed '$d') [${status}]"
+    if [[ "$status" == "$expected" ]]; then
+        record_pass
+    else
+        record_fail "expected HTTP ${expected} but got ${status}"
+    fi
+}
+
+# Check a condition on GET /info's result. Usage: check_info "python expr over r" "failure reason"
+check_info() {
+    local expr="$1"
+    local reason="$2"
+    local ok
+    ok=$(curl -s "${BASE}/info" | python3 -c \
+        "import sys,json; r=json.load(sys.stdin)['result']; print(bool(${expr}))" 2>/dev/null)
+    if [[ "$ok" == "True" ]]; then
+        record_pass
+    else
+        record_fail "$reason"
+    fi
+}
+
 do_get() {
     local path="$1"
     echo "  GET ${path}"
@@ -178,6 +209,14 @@ section "1. GET /info"
 
 test_name "Fetch device info"
 do_get "/info"
+
+test_name "status block is populated"
+check_info "all(r['status'].get(k) is not None for k in ('version', 'isScreenOn', 'permissionState', 'batteryOptimizationState'))" \
+    "status missing or has null fields"
+
+test_name "Unset settings are reported with defaults"
+check_info "None not in (r['overlay']['hotCorner'], r['settings']['remotePort'], r['notifications']['notificationDuration'])" \
+    "settings contain null values"
 
 # ---------------------------------------------------------------------------
 # 2. POST /set/overlay
@@ -227,8 +266,14 @@ test_name "hotCorner = top_end (default/restore)"
 do_post "/set/overlay" '{"hotCorner": "top_end"}'
 pause_for_visual "Clock should move back to TOP-RIGHT corner"
 
-test_name "Invalid hotCorner falls back gracefully (API accepts, defaults to top_end)"
-do_post "/set/overlay" '{"hotCorner": "invalid_value"}'
+test_name "Invalid hotCorner rejected"
+do_post_expect_fail "/set/overlay" '{"hotCorner": "invalid_value"}'
+
+test_name "overlayVisibility above 95 rejected"
+do_post_expect_fail "/set/overlay" '{"overlayVisibility": 96}'
+
+test_name "clockOverlayVisibility below 0 rejected"
+do_post_expect_fail "/set/overlay" '{"clockOverlayVisibility": -1}'
 
 test_name "All overlay fields in one request"
 do_post "/set/overlay" '{"overlayVisibility": 0, "clockOverlayVisibility": 100, "hotCorner": "top_end"}'
@@ -298,6 +343,12 @@ pause_for_visual "'Settings Test' badge appears semi-transparent/dimmed"
 
 test_name "fixedNotificationsVisibility = 100 (restore)"
 do_post "/set/notifications" '{"fixedNotificationsVisibility": 100}'
+
+test_name "notificationDuration outside 3-30 rejected"
+do_post_expect_fail "/set/notifications" '{"notificationDuration": 31}'
+
+test_name "fixedNotificationsVisibility above 100 rejected"
+do_post_expect_fail "/set/notifications" '{"fixedNotificationsVisibility": 101}'
 
 test_name "All notification fields in one request"
 do_post "/set/notifications" '{"displayNotifications": true, "notificationLayoutName": "Default", "notificationDuration": 8, "displayFixedNotifications": true, "fixedNotificationsVisibility": 100}'
@@ -568,6 +619,24 @@ do_post_expect_fail "/notify_fixed" '{"id": "invalid-icon-test", "icon": "mdi:no
 test_name "Icon with invalid prefix rejected (not mdi: or http(s)://)"
 do_post_expect_fail "/notify_fixed" '{"id": "invalid-icon-test", "icon": "invalid-value", "text": "Test"}'
 
+test_name "DELETE removes a fixed notification"
+do_post_silent "/notify_fixed" '{"id": "delete-test", "icon": "mdi:delete", "text": "Delete me"}'
+do_delete "/notify_fixed/delete-test" 200
+
+test_name "DELETE of a missing fixed notification returns 404"
+do_delete "/notify_fixed/delete-test" 404
+
+test_name "DELETE decodes URL-encoded ids"
+do_post_silent "/notify_fixed" '{"id": "delete test", "icon": "mdi:delete", "text": "Delete me"}'
+do_delete "/notify_fixed/delete%20test" 200
+
+# Older Home Assistant installs remove badges this way; it must keep working
+test_name "Legacy removal (visible:false + 1s expiration) purges the badge"
+do_post_silent "/notify_fixed" '{"id": "legacy-remove", "icon": "mdi:delete", "text": "Legacy"}'
+do_post_silent "/notify_fixed" '{"id": "legacy-remove", "visible": false, "expiration": "1s"}'
+sleep 3
+do_delete "/notify_fixed/legacy-remove" 404
+
 # ---------------------------------------------------------------------------
 # 7. GET /fixed_notifications
 # ---------------------------------------------------------------------------
@@ -588,17 +657,15 @@ pause_for_visual "If screen was off/dim, it should now be on"
 # ---------------------------------------------------------------------------
 # Cleanup
 # ---------------------------------------------------------------------------
-section "Cleanup — hiding all test badges"
-# Use do_post_silent for badges that may have already auto-expired and been
-# removed from state (expire-test, expire-str-test). Hiding a non-existent
-# badge with no icon/text is correctly rejected by the API — not a bug.
+section "Cleanup — removing all test badges"
 for badge_id in "$FN_ID" "collapse-test" "collapse-repeat" "multi-1" "multi-2" "multi-3"; do
-    CURRENT_TEST="Cleanup: hide ${badge_id}"
-    do_post "/notify_fixed" "{\"id\": \"${badge_id}\", \"visible\": false}"
+    CURRENT_TEST="Cleanup: remove ${badge_id}"
+    do_delete "/notify_fixed/${badge_id}" 200
 done
-for badge_id in "expire-test" "expire-str-test"; do
-    echo -e "\n  ${DIM}Cleanup (silent): hide ${badge_id}${RESET}"
-    do_post_silent "/notify_fixed" "{\"id\": \"${badge_id}\", \"visible\": false}"
+# These may have already auto-expired and been purged, so don't check the result
+for badge_id in "expire-test" "expire-str-test" "$SETTINGS_BADGE_ID"; do
+    echo -e "\n  ${DIM}Cleanup (silent): remove ${badge_id}${RESET}"
+    curl -s -X DELETE "${BASE}/notify_fixed/${badge_id}" > /dev/null
 done
 
 # ---------------------------------------------------------------------------

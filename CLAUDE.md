@@ -69,6 +69,9 @@ Never set a `Boolean` LaunchedEffect key back to `false` inside the effect — t
 ### Android TV D-pad Focus
 D-pad Enter/OK `KeyUp` can trigger clicks on newly-focused buttons. Use deferred focus transfer (100ms delay via `LaunchedEffect`) for Enter/OK. `DirectionRight` doesn't trigger button clicks so immediate focus is safe.
 
+### Permission Settings Screens on Android TV
+Many TV builds lack the overlay/battery-optimization settings screens, and Google TV (e.g. onn 4K Pro) routes `ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` to TvSettings' `EmptyStubActivity`, which closes instantly — `startActivity` succeeds but nothing appears. `SetupActivity.usableIntent()` resolves candidates first and treats stubs as missing (requires the manifest `<queries>` entries); onboarding skips the battery step when no usable screen exists.
+
 ### Notification Queue and `displayNotifications`
 `enqueueNotification()` drops notifications immediately when `displayNotifications = false`. This prevents a backlog that would flush on re-enable. Never accumulate notifications while the setting is off.
 
