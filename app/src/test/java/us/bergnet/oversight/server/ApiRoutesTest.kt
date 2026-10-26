@@ -1,6 +1,9 @@
 package us.bergnet.oversight.server
 
 import android.app.Application
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.content.pm.ResolveInfo
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
@@ -33,6 +36,7 @@ import org.robolectric.shadows.ShadowSettings
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationLayoutList
 import us.bergnet.oversight.data.store.OverlayStateStore
+import us.bergnet.oversight.util.SettingsScreens
 
 /** Exercises the REST routes in-process; Robolectric supplies the Context used for /info status. */
 @RunWith(RobolectricTestRunner::class)
@@ -117,12 +121,45 @@ class ApiRoutesTest {
         assertEquals("ENABLED", status.getValue("batteryOptimizationState").jsonPrimitive.content)
     }
 
+    /** Makes [intent] resolve to an activity named [activityName], as a real settings app would. */
+    private fun registerSettingsScreen(intent: Intent, activityName: String) {
+        shadowOf(context.packageManager).addResolveInfoForIntent(intent, ResolveInfo().apply {
+            activityInfo = ActivityInfo().apply {
+                packageName = "com.android.tv.settings"
+                name = activityName
+            }
+        })
+    }
+
+    private suspend fun ApplicationTestBuilder.batteryState() =
+        client.get("/info").json().result.getValue("status").jsonObject
+            .getValue("batteryOptimizationState").jsonPrimitive.content
+
     @Test
-    fun infoReportsMissingPermissionAndExemption() = api {
+    fun infoReportsMissingPermission() = api {
         ShadowSettings.setCanDrawOverlays(false)
         val status = client.get("/info").json().result.getValue("status").jsonObject
         assertEquals("DENIED_SETTING_AVAILABLE", status.getValue("permissionState").jsonPrimitive.content)
-        assertEquals("SKIPPED", status.getValue("batteryOptimizationState").jsonPrimitive.content)
+    }
+
+    @Test
+    fun batteryNotExemptButRequestableIsSkipped() = api {
+        registerSettingsScreen(SettingsScreens.batteryExemptionIntents(context).first(), "com.android.tv.settings.RequestIgnoreBatteryOptimizations")
+        assertEquals("SKIPPED", batteryState())
+    }
+
+    @Test
+    fun batteryWithNoExemptionScreenIsBlocked() = api {
+        assertEquals("BLOCKED", batteryState())
+    }
+
+    @Test
+    fun batteryWithOnlyStubExemptionScreensIsBlocked() = api {
+        // Google TV: both battery intents resolve, but to a stub that closes immediately
+        SettingsScreens.batteryExemptionIntents(context).forEach {
+            registerSettingsScreen(it, "com.android.tv.settings.EmptyStubActivity")
+        }
+        assertEquals("BLOCKED", batteryState())
     }
 
     @Test

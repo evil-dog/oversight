@@ -16,6 +16,7 @@ import us.bergnet.oversight.data.model.enums.BatteryOptimizationState
 import us.bergnet.oversight.data.model.enums.PermissionState
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.server.HttpServer
+import us.bergnet.oversight.util.SettingsScreens
 
 /** Live device status; computed per request since permissions can change outside the app. */
 private fun Context.currentStatus(): StatusValues {
@@ -24,8 +25,12 @@ private fun Context.currentStatus(): StatusValues {
         version = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt(),
         permissionState = if (Settings.canDrawOverlays(this)) PermissionState.GRANTED
             else PermissionState.DENIED_SETTING_AVAILABLE,
-        batteryOptimizationState = if (pm.isIgnoringBatteryOptimizations(packageName)) BatteryOptimizationState.ENABLED
-            else BatteryOptimizationState.SKIPPED,
+        batteryOptimizationState = when {
+            pm.isIgnoringBatteryOptimizations(packageName) -> BatteryOptimizationState.ENABLED
+            // No usable exemption screen (e.g. Google TV): it can't be granted from the device, only via ADB
+            !SettingsScreens.canRequestBatteryExemption(this) -> BatteryOptimizationState.BLOCKED
+            else -> BatteryOptimizationState.SKIPPED
+        },
         isScreenOn = OverlayStateStore.isScreenOn.value,
     )
 }

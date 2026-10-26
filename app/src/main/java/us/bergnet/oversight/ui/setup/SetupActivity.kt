@@ -2,7 +2,6 @@ package us.bergnet.oversight.ui.setup
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
@@ -17,6 +16,7 @@ import kotlinx.coroutines.launch
 import us.bergnet.oversight.OverSightApplication
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.service.OverlayService
+import us.bergnet.oversight.util.SettingsScreens
 
 class SetupActivity : ComponentActivity() {
 
@@ -27,7 +27,7 @@ class SetupActivity : ComponentActivity() {
     private val hasOverlayPermission = mutableStateOf(false)
     private val hasBatteryExemption = mutableStateOf(false)
     // Fixed for the device, so resolve once rather than on every resume
-    private val canRequestBatteryExemption by lazy { usableIntent(batteryExemptionIntents()) != null }
+    private val canRequestBatteryExemption by lazy { SettingsScreens.canRequestBatteryExemption(this) }
     private val onboardingComplete = mutableStateOf<Boolean?>(null) // null = loading
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,10 +119,7 @@ class SetupActivity : ComponentActivity() {
 
     private fun requestOverlayPermission() {
         launchSettingsOrShowAdbHint(
-            listOf(
-                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")),
-                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION),
-            ),
+            SettingsScreens.overlayPermissionIntents(this),
             unavailableMessage = "Overlay settings aren't available on this device. Grant via ADB:\n" +
                 "adb shell appops set $packageName SYSTEM_ALERT_WINDOW allow",
         )
@@ -132,31 +129,15 @@ class SetupActivity : ComponentActivity() {
         val pm = getSystemService(PowerManager::class.java)
         if (pm.isIgnoringBatteryOptimizations(packageName)) return
         launchSettingsOrShowAdbHint(
-            batteryExemptionIntents(),
+            SettingsScreens.batteryExemptionIntents(this),
             unavailableMessage = "Battery optimization settings aren't available on this device. Exempt via ADB:\n" +
                 "adb shell dumpsys deviceidle whitelist +$packageName",
         )
     }
 
-    private fun batteryExemptionIntents() = listOf(
-        @Suppress("BatteryLife")
-        Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:$packageName")),
-        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
-    )
-
-    /**
-     * The first candidate whose settings screen really exists. Many Android TV builds don't ship
-     * these screens at all, and Google TV routes some of them to TvSettings' EmptyStubActivity,
-     * which closes immediately so the request appears to do nothing.
-     */
-    private fun usableIntent(candidates: List<Intent>): Intent? = candidates.firstOrNull { intent ->
-        val target = packageManager.resolveActivity(intent, 0)?.activityInfo
-        target != null && !target.name.endsWith("EmptyStubActivity")
-    }
-
     /** Starts the first usable settings screen in [candidates], else shows [unavailableMessage]. */
     private fun launchSettingsOrShowAdbHint(candidates: List<Intent>, unavailableMessage: String) {
-        val launched = usableIntent(candidates)?.let { intent ->
+        val launched = SettingsScreens.usableIntent(this, candidates)?.let { intent ->
             try {
                 startActivity(intent)
                 true

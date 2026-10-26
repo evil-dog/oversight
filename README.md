@@ -77,7 +77,7 @@ Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Uns
 - `version` — app `versionCode` (`major*10000 + minor*100 + patch`, e.g. `302` for v0.3.2)
 - `isScreenOn` — whether the TV screen is on
 - `permissionState` — `GRANTED` when the overlay permission is granted, otherwise `DENIED_SETTING_AVAILABLE`
-- `batteryOptimizationState` — `ENABLED` when the app is exempt from battery optimization, otherwise `SKIPPED`
+- `batteryOptimizationState` — `ENABLED` when the app is exempt from battery optimization; `SKIPPED` when it isn't but the device can grant it (setup screen); `BLOCKED` when the device has no way to grant it (e.g. Google TV — only via `adb shell dumpsys deviceidle whitelist +us.bergnet.oversight`)
 
 #### `POST /set/overlay`
 ```json
