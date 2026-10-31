@@ -1,5 +1,6 @@
 package us.bergnet.oversight.ui
 
+import android.view.KeyEvent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,6 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import us.bergnet.oversight.data.model.ButtonMapping
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationLayout
@@ -33,6 +35,7 @@ import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayCustomization
 import us.bergnet.oversight.data.model.OverlayValues
 import us.bergnet.oversight.data.model.ReceivedNotification
+import us.bergnet.oversight.data.model.RemapAction
 import us.bergnet.oversight.data.model.enums.FixedNotificationShape
 import us.bergnet.oversight.data.model.enums.FixedNotificationSize
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -44,6 +47,9 @@ import us.bergnet.oversight.ui.overlay.notification.NotificationPopup
 import us.bergnet.oversight.data.model.enums.HotCorner
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import us.bergnet.oversight.ui.setup.OnboardingScreen
+import us.bergnet.oversight.ui.setup.OnboardingStep
+import us.bergnet.oversight.ui.setup.SId
 import us.bergnet.oversight.ui.setup.SetupScreen
 import us.bergnet.oversight.ui.theme.OverlayTheme
 
@@ -92,6 +98,8 @@ class UiSnapshots {
         OverlayStateStore.setDeviceId("00000000-snapshot")
         OverlayStateStore.setServiceRunning(true)
         OverlayStateStore.setMdnsRegistered(true)
+        OverlayStateStore.setButtonMappings(emptyList())
+        OverlayStateStore.setRemapServiceConnected(false)
         while (OverlayStateStore.currentNotification.value != null) OverlayStateStore.dismissCurrentNotification()
     }
 
@@ -246,9 +254,10 @@ class UiSnapshots {
     fun setupScreen_about() {
         capture("setup_about") {
             SetupScreen(
-                hasOverlayPermission = true, hasBatteryExemption = false, canRequestBatteryExemption = true,
+                hasOverlayPermission = true, hasBatteryExemption = false, hasRemapPermission = false, canRequestBatteryExemption = true,
                 onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
                 onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
                 appVersion = "1.2.3"
             )
         }
@@ -259,10 +268,56 @@ class UiSnapshots {
     fun setupScreen_about_noBatteryScreen() {
         capture("setup_about_no_battery_screen") {
             SetupScreen(
-                hasOverlayPermission = true, hasBatteryExemption = false, canRequestBatteryExemption = false,
+                hasOverlayPermission = true, hasBatteryExemption = false, hasRemapPermission = true, canRequestBatteryExemption = false,
                 onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
                 onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
                 appVersion = "1.2.3"
+            )
+        }
+    }
+
+    @Test
+    fun setupScreen_remapServiceDisabled() {
+        capture("setup_remap_service_disabled") {
+            SetupScreen(
+                hasOverlayPermission = true, hasBatteryExemption = true, hasRemapPermission = true, canRequestBatteryExemption = true,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
+                appVersion = "1.2.3", initialItem = SId.REMAP_SERVICE
+            )
+        }
+    }
+
+    @Test
+    fun setupScreen_buttonMappings() {
+        OverlayStateStore.setRemapServiceConnected(true)
+        OverlayStateStore.setButtonMappings(listOf(
+            ButtonMapping(KeyEvent.KEYCODE_BUTTON_1, false, RemapAction.LAUNCH_APP, "com.plexapp.android", "Plex"),
+            ButtonMapping(KeyEvent.KEYCODE_BACK, true, RemapAction.HOME),
+            ButtonMapping(KeyEvent.KEYCODE_DPAD_CENTER, true, RemapAction.PLAY_PAUSE),
+        ))
+        capture("setup_button_mappings") {
+            SetupScreen(
+                hasOverlayPermission = true, hasBatteryExemption = true, hasRemapPermission = true, canRequestBatteryExemption = true,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
+                appVersion = "1.2.3", initialItem = SId.BUTTON_MAPPINGS
+            )
+        }
+    }
+
+    /** Existing install that finished onboarding before button remapping shipped. */
+    @Test
+    fun onboarding_buttonRemapIntro() {
+        capture("onboarding_button_remap_intro") {
+            OnboardingScreen(
+                steps = listOf(OnboardingStep.BUTTON_REMAP), isFeatureIntro = true,
+                hasOverlayPermission = true, hasBatteryExemption = true, hasRemapService = false,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {}, onRequestRemapService = {},
+                onComplete = {}
             )
         }
     }

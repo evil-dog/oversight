@@ -14,6 +14,7 @@ An Android TV application that displays a persistent, configurable overlay for c
 - **REST API** — full control from any HTTP client on the local network
 - **mDNS discovery** — advertises as `_tvoverlay._tcp` for automatic detection by Home Assistant and other clients
 - **Pixel shift** — small periodic position shift to prevent OLED burn-in
+- **Remote button remapping** — reassign short or long presses of remote buttons to system/media actions or app launches
 - **Setup UI** — YouTube TV-style D-pad-navigable settings screen with onboarding wizard
 
 ## Requirements
@@ -56,8 +57,26 @@ Replace `<DEVICE_IP>` with your Android TV's IP address. ADB debugging must be e
 ## First Launch
 
 1. Open the app from the launcher (it appears as "OverSight")
-2. Follow the onboarding wizard to grant the overlay permission and disable battery optimization
+2. Follow the onboarding wizard to grant the overlay permission, disable battery optimization, and optionally enable [button remapping](#remote-button-remapping)
 3. The overlay service starts automatically and persists across reboots
+
+## Remote Button Remapping
+
+Set up under **Remote Buttons** in the settings screen:
+
+1. **Remap Service** → *Accessibility Settings*, then turn on "OverSight Button Remapping". If the switch is greyed out (Android 13+ with a sideloaded APK), first choose *Allow restricted settings* from OverSight's App info menu. If the device has no accessibility settings screen, enable it over ADB:
+   ```bash
+   adb shell settings put secure enabled_accessibility_services us.bergnet.oversight/us.bergnet.oversight.service.ButtonRemapService
+   adb shell settings put secure accessibility_enabled 1
+   ```
+2. **Button Mappings** → *Add Mapping*, press the remote button, then choose short or long press and an action: Back, Home, Recent Apps, Notifications, Play/Pause, Next/Previous Track, Volume Up/Down, Mute, Launch App, or Do Nothing.
+
+Existing installs that finished onboarding before this feature existed are shown a one-time "New" screen offering to enable it. Select an existing mapping to change or delete it. Mappings are paused while the settings screen is open, so a bad mapping can't lock you out.
+
+Limitations (shared by all non-root remapping apps):
+- Power can't be remapped, and buttons the remote sends straight to the TV over IR/CEC (often volume) never reach Android.
+- Buttons can only run the actions above. They can't be turned into other key codes.
+- A long-press mapping delays the button's short press until release. If the short press isn't also mapped, only Back, Home, media and volume buttons keep their normal short press. Other buttons do nothing on a short press.
 
 ## REST API
 
@@ -244,6 +263,7 @@ Visual checks prompt for pass/fail (`[p]ass / [f]ail / [s]kip`) and produce a fa
 | Application | `OverSightApplication.kt` |
 | Foreground service | `service/OverlayService.kt` |
 | Overlay window | `service/OverlayWindowManager.kt` |
+| Button remapping | `service/ButtonRemapService.kt` (accessibility service) + `service/ButtonRemapper.kt` |
 | State management | `data/store/OverlayStateStore.kt` |
 | Persistence | `data/repository/PersistenceManager.kt` (DataStore) |
 | HTTP server | `server/HttpServer.kt` + `server/routes/` |

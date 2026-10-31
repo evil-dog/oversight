@@ -58,6 +58,12 @@ docker run --rm --network host \
 ### mDNS
 `ZeroconfAdvertiser` uses Android `NsdManager`. A fresh `RegistrationListener` is created per registration to avoid NsdManager race conditions. Re-registers automatically when `deviceName` or `port` changes.
 
+### Remote Button Remapping
+`ButtonRemapService` is an `AccessibilityService` with `flagRequestFilterKeyEvents`; the press logic (short vs long, capture, consumption) lives in Android-free `ButtonRemapper` for unit tests. Accessibility services can't inject key codes, so mappings run actions (`performGlobalAction`, `AudioManager`, `startActivity`), and once a DOWN is consumed the whole press is. A long-press-only mapping restores the short press only for keys `ButtonMapping.canReproduceDefault()` covers. Mappings are bypassed while `SetupActivity` is resumed (`OverlayStateStore.isSetupForeground`) so a bad mapping can't block fixing it; key capture for new mappings goes through the service (`keyCaptureListener`) so Home and vendor buttons can be captured.
+
+### Onboarding and Feature Intros
+`OnboardingScreen` runs a list of `OnboardingStep`s. First run gets all applicable steps; finishing it marks every entry of `SetupActivity.FEATURE_INTROS` seen (DataStore string set `seen_feature_intros`). Installs that finished onboarding earlier get each unseen feature's step once as a "NEW" intro, skipped and marked seen if the feature is already enabled. To introduce a future feature, add its step and an entry to `FEATURE_INTROS`.
+
 ### Fixed Notification Partial Updates
 `OverlayStateStore.upsertFixedNotification()` merges incoming data into the existing notification via `mergeWith()`. Only `id` is required for updates; all other fields are nullable and keep their existing values when null. Fields with non-null defaults (like `size`) must be made nullable in the data class so the merge pattern works correctly.
 

@@ -5,4 +5,6 @@
     <string name="service_channel_description">Keeps OverSight overlay running</string>
     <string name="service_notification_title">OverSight is running</string>
     <string name="service_notification_text">Overlay active on port %d</string>
+    <string name="button_remap_service_label">OverSight Button Remapping</string>
+    <string name="button_remap_service_description">Lets OverSight reassign remote buttons. It sees which buttons you press so it can run the actions you mapped to them; it doesn\'t read screen content.</string>
 </resources>

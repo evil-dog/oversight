@@ -18,6 +18,8 @@ object SettingsScreens {
         Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
     )
 
+    fun accessibilitySettingsIntents() = listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+
     /**
      * The first candidate whose settings screen really exists. Many Android TV builds don't ship
      * these screens at all, and Google TV routes some of them to TvSettings' EmptyStubActivity,

@@ -46,6 +46,20 @@ object OverlayStateStore {
     private val _isMdnsRegistered = MutableStateFlow(false)
     val isMdnsRegistered: StateFlow<Boolean> = _isMdnsRegistered.asStateFlow()
 
+    // Remote button remapping
+    private val _buttonMappings = MutableStateFlow<List<ButtonMapping>>(emptyList())
+    val buttonMappings: StateFlow<List<ButtonMapping>> = _buttonMappings.asStateFlow()
+
+    // Whether ButtonRemapService is bound, i.e. enabled in accessibility settings
+    private val _isRemapServiceConnected = MutableStateFlow(false)
+    val isRemapServiceConnected: StateFlow<Boolean> = _isRemapServiceConnected.asStateFlow()
+
+    /** Mappings are bypassed while the setup screen is open, so a bad mapping can't lock the user out of fixing it. */
+    @Volatile var isSetupForeground = false
+
+    /** When set, ButtonRemapService hands the next key press here instead of remapping it. Called on the main thread. */
+    @Volatile var keyCaptureListener: ((Int) -> Unit)? = null
+
     // Device info
     private val _deviceId = MutableStateFlow("")
     val deviceId: StateFlow<String> = _deviceId.asStateFlow()
@@ -173,6 +187,25 @@ object OverlayStateStore {
 
     fun setMdnsRegistered(registered: Boolean) {
         _isMdnsRegistered.value = registered
+    }
+
+    fun setButtonMappings(mappings: List<ButtonMapping>) {
+        _buttonMappings.value = mappings
+    }
+
+    /** Replaces any mapping for the same key and press type. */
+    fun upsertButtonMapping(mapping: ButtonMapping) {
+        _buttonMappings.update { current ->
+            current.filterNot { it.matches(mapping.keyCode, mapping.longPress) } + mapping
+        }
+    }
+
+    fun removeButtonMapping(keyCode: Int, longPress: Boolean) {
+        _buttonMappings.update { current -> current.filterNot { it.matches(keyCode, longPress) } }
+    }
+
+    fun setRemapServiceConnected(connected: Boolean) {
+        _isRemapServiceConnected.value = connected
     }
 
     fun setDeviceId(id: String) {

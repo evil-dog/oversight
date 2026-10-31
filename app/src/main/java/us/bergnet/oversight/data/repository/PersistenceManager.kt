@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -41,8 +42,10 @@ class PersistenceManager(private val context: Context) {
         private val KEY_CLOCK_TEXT_FORMAT = stringPreferencesKey("clock_text_format")
         private val KEY_FIXED_NOTIFICATIONS = stringPreferencesKey("fixed_notifications")
         private val KEY_LAYOUT_LIST = stringPreferencesKey("layout_list")
+        private val KEY_BUTTON_MAPPINGS = stringPreferencesKey("button_mappings")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
         private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        private val KEY_SEEN_FEATURE_INTROS = stringSetPreferencesKey("seen_feature_intros")
     }
 
     private val json = Json {
@@ -93,6 +96,10 @@ class PersistenceManager(private val context: Context) {
             Log.d(TAG, "Loaded ${mergedList.list.size} notification layouts (${customLayouts.size} custom)")
         }
 
+        loadKey(prefs, KEY_BUTTON_MAPPINGS) { value ->
+            OverlayStateStore.setButtonMappings(json.decodeFromString<List<ButtonMapping>>(value))
+        }
+
         val deviceId = prefs[KEY_DEVICE_ID] ?: UUID.randomUUID().toString().also { newId ->
             try {
                 context.dataStore.edit { it[KEY_DEVICE_ID] = newId }
@@ -132,6 +139,26 @@ class PersistenceManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Log.e(TAG, "Error saving onboarding state", e)
+        }
+    }
+
+    /** Names of features whose intro the user has already seen (in onboarding or as a "what's new" step). */
+    suspend fun seenFeatureIntros(): Set<String> {
+        return try {
+            context.dataStore.data.first()[KEY_SEEN_FEATURE_INTROS] ?: emptySet()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error reading seen feature intros", e)
+            emptySet()
+        }
+    }
+
+    suspend fun markFeatureIntrosSeen(features: Collection<String>) {
+        try {
+            context.dataStore.edit { prefs ->
+                prefs[KEY_SEEN_FEATURE_INTROS] = (prefs[KEY_SEEN_FEATURE_INTROS] ?: emptySet()) + features
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving seen feature intros", e)
         }
     }
 
@@ -183,6 +210,14 @@ class PersistenceManager(private val context: Context) {
                 .debounce(500)
                 .collectLatest { layoutList ->
                     save(KEY_LAYOUT_LIST, json.encodeToString(layoutList))
+                }
+        }
+
+        scope.launch {
+            OverlayStateStore.buttonMappings
+                .debounce(500)
+                .collectLatest { mappings ->
+                    save(KEY_BUTTON_MAPPINGS, json.encodeToString(mappings))
                 }
         }
 

@@ -7,6 +7,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import us.bergnet.oversight.data.model.ButtonMapping
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationLayout
@@ -15,6 +16,7 @@ import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayCustomization
 import us.bergnet.oversight.data.model.OverlayValues
 import us.bergnet.oversight.data.model.ReceivedNotification
+import us.bergnet.oversight.data.model.RemapAction
 import us.bergnet.oversight.data.model.SettingsValues
 import us.bergnet.oversight.data.model.enums.FontWeightEnum
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -28,6 +30,7 @@ class StateMergeTest {
         OverlayStateStore.setFixedNotifications(emptyList())
         OverlayStateStore.setLayoutList(NotificationLayoutList())
         OverlayStateStore.clearNotifications()
+        OverlayStateStore.setButtonMappings(emptyList())
     }
 
     private fun decodeFixed(json: String) = HttpServer.json.decodeFromString<FixedNotification>(json)
@@ -187,5 +190,31 @@ class StateMergeTest {
         assertTrue(OverlayStateStore.removeFixedNotification("a"))
         assertNull(OverlayStateStore.getFixedNotification("a"))
         assertFalse(OverlayStateStore.removeFixedNotification("a"))
+    }
+
+    // --- Button mappings ---
+
+    @Test
+    fun buttonMappingUpsertReplacesSameKeyAndPressOnly() {
+        OverlayStateStore.upsertButtonMapping(ButtonMapping(4, false, RemapAction.HOME))
+        OverlayStateStore.upsertButtonMapping(ButtonMapping(4, true, RemapAction.RECENTS))
+        OverlayStateStore.upsertButtonMapping(ButtonMapping(4, false, RemapAction.BLOCK))
+        val mappings = OverlayStateStore.buttonMappings.value
+        assertEquals(2, mappings.size)
+        assertEquals(RemapAction.BLOCK, mappings.single { !it.longPress }.action)
+        assertEquals(RemapAction.RECENTS, mappings.single { it.longPress }.action)
+
+        OverlayStateStore.removeButtonMapping(4, longPress = true)
+        assertEquals(listOf(ButtonMapping(4, false, RemapAction.BLOCK)), OverlayStateStore.buttonMappings.value)
+    }
+
+    @Test
+    fun buttonMappingsRoundTripThroughJson() {
+        val mappings = listOf(
+            ButtonMapping(188, false, RemapAction.LAUNCH_APP, "com.plexapp.android", "Plex"),
+            ButtonMapping(4, true, RemapAction.HOME),
+        )
+        val json = HttpServer.json.encodeToString(mappings)
+        assertEquals(mappings, HttpServer.json.decodeFromString<List<ButtonMapping>>(json))
     }
 }

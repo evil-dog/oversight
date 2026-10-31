@@ -23,20 +23,28 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,9 +67,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import us.bergnet.oversight.data.model.ButtonMapping
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayValues
+import us.bergnet.oversight.data.model.RemapAction
 import us.bergnet.oversight.data.model.SettingsValues
 import us.bergnet.oversight.data.model.enums.HotCorner
 import us.bergnet.oversight.data.store.OverlayStateStore
@@ -69,19 +80,26 @@ import us.bergnet.oversight.ui.components.MdiIcon
 import us.bergnet.oversight.util.NetworkUtils
 import us.bergnet.oversight.ui.theme.*
 
-private enum class SId {
+internal enum class SId {
     ABOUT,
     DEVICE_NAME, REMOTE_PORT,
     HOT_CORNER, CLOCK_VISIBILITY, DIMMER, PIXEL_SHIFT,
     DISPLAY_NOTIFICATIONS, NOTIFICATION_DURATION,
     DISPLAY_FIXED, FIXED_VISIBILITY,
-    SERVICE_CONTROL, CLEAR_FIXED
+    REMAP_SERVICE, BUTTON_MAPPINGS,
+    SERVICE_CONTROL, CLEAR_FIXED,
+    // Steps of the add/edit button mapping flow (selectors, not menu items)
+    MAP_PRESS, MAP_ACTION, MAP_APP, MAP_EDIT
 }
+
+/** An installed app the "Launch App" action can open. */
+data class LaunchableApp(val packageName: String, val label: String)
 
 private sealed interface DialogState {
     data class Selector(val id: SId, val title: String, val options: List<String>, val selected: Int) : DialogState
     data class Slider(val id: SId, val title: String, val value: Int, val range: IntRange, val step: Int, val suffix: String) : DialogState
     data class TextInput(val id: SId, val title: String, val value: String, val numeric: Boolean) : DialogState
+    data object Capture : DialogState
 }
 
 private sealed interface PanelEntry {
@@ -105,13 +123,21 @@ private val menuEntries = listOf(
     PanelEntry.Section("Fixed Notifications"),
     PanelEntry.Item(SId.DISPLAY_FIXED),
     PanelEntry.Item(SId.FIXED_VISIBILITY),
+    PanelEntry.Section("Remote Buttons"),
+    PanelEntry.Item(SId.REMAP_SERVICE),
+    PanelEntry.Item(SId.BUTTON_MAPPINGS),
     PanelEntry.Section("Service"),
     PanelEntry.Item(SId.SERVICE_CONTROL),
     PanelEntry.Item(SId.CLEAR_FIXED),
 )
 
+private fun menuIndexOf(id: SId) =
+    menuEntries.indexOfFirst { it is PanelEntry.Item && it.id == id }.coerceAtLeast(0)
+
 private val cornerLabels = listOf("Top Left", "Top Right", "Bottom Left", "Bottom Right")
 private val cornerValues = listOf(HotCorner.TOP_START, HotCorner.TOP_END, HotCorner.BOTTOM_START, HotCorner.BOTTOM_END)
+
+private val remapActions = RemapAction.entries
 
 private data class SettingMeta(val title: String, val description: String, val icon: String)
 
@@ -127,6 +153,8 @@ private val settingMeta = mapOf(
     SId.NOTIFICATION_DURATION to SettingMeta("Notification Duration", "How long popup notifications are displayed before automatically dismissing.", "timer-outline"),
     SId.DISPLAY_FIXED to SettingMeta("Display Fixed", "Show persistent fixed notification badges alongside the clock overlay.", "pin-outline"),
     SId.FIXED_VISIBILITY to SettingMeta("Fixed Visibility", "Opacity of fixed notification badges. 100% is fully visible, 0% is fully transparent.", "opacity"),
+    SId.REMAP_SERVICE to SettingMeta("Remap Service", "Button remapping runs as an accessibility service, which must be turned on in Accessibility settings.", "remote-tv"),
+    SId.BUTTON_MAPPINGS to SettingMeta("Button Mappings", "Reassign remote buttons to other actions or apps. The Power button can't be remapped.", "gesture-tap-button"),
     SId.SERVICE_CONTROL to SettingMeta("Service Control", "Start, stop, or restart the overlay service.", "cog-outline"),
     SId.CLEAR_FIXED to SettingMeta("Clear Fixed Notifications", "Remove all fixed notification badges. Useful for clearing stale notifications.", "notification-clear-all"),
 )
@@ -134,9 +162,11 @@ private val settingMeta = mapOf(
 // ==================== MAIN ====================
 
 @Composable
-fun SetupScreen(
+internal fun SetupScreen(
     hasOverlayPermission: Boolean,
     hasBatteryExemption: Boolean,
+    /** Button remapping is turned on in Accessibility settings (the service may still be binding). */
+    hasRemapPermission: Boolean,
     /** False when the device has no working exemption screen; the exemption is then shown as not required. */
     canRequestBatteryExemption: Boolean,
     onRequestOverlayPermission: () -> Unit,
@@ -145,15 +175,24 @@ fun SetupScreen(
     onStopService: () -> Unit,
     onRestartService: () -> Unit,
     onClearFixedNotifications: () -> Unit,
-    appVersion: String
+    onOpenAccessibilitySettings: () -> Unit,
+    loadLaunchableApps: () -> List<LaunchableApp>,
+    appVersion: String,
+    /** Menu item selected on open; snapshots use it to render other panels. */
+    initialItem: SId = SId.ABOUT
 ) {
     val infoValues by OverlayStateStore.infoValues.collectAsState()
     val isRunning by OverlayStateStore.isServiceRunning.collectAsState()
     val mdnsRegistered by OverlayStateStore.isMdnsRegistered.collectAsState()
     val deviceId by OverlayStateStore.deviceId.collectAsState()
+    val buttonMappings by OverlayStateStore.buttonMappings.collectAsState()
+    val remapConnected by OverlayStateStore.isRemapServiceConnected.collectAsState()
 
-    var selectedItem by remember { mutableStateOf(SId.ABOUT) }
+    var selectedItem by remember { mutableStateOf(initialItem) }
     var dialog by remember { mutableStateOf<DialogState?>(null) }
+    // Button mapping being added or edited; action is a placeholder until chosen
+    var mappingDraft by remember { mutableStateOf<ButtonMapping?>(null) }
+    var apps by remember { mutableStateOf<List<LaunchableApp>>(emptyList()) }
     // Counters as LaunchedEffect keys — incrementing avoids the cancellation bug
     // (setting a boolean key back to false inside the effect cancels the running coroutine)
     var restoreFocusTrigger by remember { mutableIntStateOf(0) }
@@ -162,6 +201,24 @@ fun SetupScreen(
 
     val rightFocus = remember { FocusRequester() }
     val leftFocusMap = remember { SId.entries.associateWith { FocusRequester() } }
+    // Starts scrolled to the initial item so it can take focus
+    val leftListState = rememberLazyListState(initialFirstVisibleItemIndex = menuIndexOf(initialItem))
+    val scope = rememberCoroutineScope()
+
+    /**
+     * Returns focus to the selected menu item. The menu is lazy, so an item scrolled out of view
+     * isn't composed and can't take focus until it's scrolled back in.
+     */
+    fun focusLeftMenu() {
+        scope.launch {
+            val index = menuIndexOf(selectedItem)
+            if (leftListState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
+                leftListState.scrollToItem(index)
+                withFrameNanos {} // let the item compose and attach before focusing it
+            }
+            try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {}
+        }
+    }
 
     // Clock overlap padding
     // Current values
@@ -211,16 +268,81 @@ fun SetupScreen(
 
     val dismissDialog: () -> Unit = {
         dialog = null
+        mappingDraft = null
         restoreFocusTrigger++
+    }
+
+    fun startMappingCapture() {
+        leftActive = false
+        dialog = DialogState.Capture
+    }
+
+    fun onKeyCaptured(keyCode: Int) {
+        mappingDraft = ButtonMapping(keyCode, longPress = false, action = RemapAction.BLOCK)
+        val shortKept = if (ButtonMapping.canReproduceDefault(keyCode)) "short press works as normal" else "short press does nothing"
+        dialog = DialogState.Selector(
+            SId.MAP_PRESS, ButtonMapping.keyName(keyCode),
+            listOf("Short press", "Long press ($shortKept unless mapped)"), -1
+        )
+    }
+
+    fun editMapping(mapping: ButtonMapping) {
+        leftActive = false
+        mappingDraft = mapping
+        dialog = DialogState.Selector(SId.MAP_EDIT, mapping.title(), listOf("Change action", "Delete"), -1)
+    }
+
+    fun chooseAction(draft: ButtonMapping) {
+        val existing = buttonMappings.firstOrNull { it.matches(draft.keyCode, draft.longPress) }
+        dialog = DialogState.Selector(
+            SId.MAP_ACTION, draft.title(), remapActions.map { it.label },
+            existing?.let { remapActions.indexOf(it.action) } ?: -1
+        )
+    }
+
+    /** Handles a pick in any selector; the mapping flow advances to its next step instead of closing. */
+    fun onSelectorPick(id: SId, index: Int) {
+        val draft = mappingDraft
+        when (id) {
+            SId.MAP_PRESS -> draft?.copy(longPress = index == 1)?.let { mappingDraft = it; chooseAction(it) }
+            SId.MAP_EDIT -> when {
+                draft == null -> dismissDialog()
+                index == 0 -> chooseAction(draft)
+                else -> { OverlayStateStore.removeButtonMapping(draft.keyCode, draft.longPress); dismissDialog() }
+            }
+            SId.MAP_ACTION -> {
+                val action = remapActions[index]
+                when {
+                    draft == null -> dismissDialog()
+                    action == RemapAction.LAUNCH_APP -> {
+                        mappingDraft = draft.copy(action = action)
+                        apps = loadLaunchableApps()
+                        if (apps.isEmpty()) { dismissDialog(); return }
+                        dialog = DialogState.Selector(SId.MAP_APP, "Launch which app?", apps.map { it.label },
+                            apps.indexOfFirst { it.packageName == draft.packageName })
+                    }
+                    else -> {
+                        OverlayStateStore.upsertButtonMapping(draft.copy(action = action, packageName = null, appLabel = null))
+                        dismissDialog()
+                    }
+                }
+            }
+            SId.MAP_APP -> {
+                val app = apps.getOrNull(index)
+                if (draft != null && app != null) {
+                    OverlayStateStore.upsertButtonMapping(draft.copy(packageName = app.packageName, appLabel = app.label))
+                }
+                dismissDialog()
+            }
+            else -> { applyValue(id, index.toString()); dismissDialog() }
+        }
     }
 
     // Restore focus after dialog closes — counter key avoids self-cancellation
     LaunchedEffect(restoreFocusTrigger) {
         if (restoreFocusTrigger > 0) {
             delay(250)
-            try { rightFocus.requestFocus() } catch (_: Exception) {
-                try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {}
-            }
+            try { rightFocus.requestFocus() } catch (_: Exception) { focusLeftMenu() }
             delay(50)
             leftActive = true
         }
@@ -242,6 +364,7 @@ fun SetupScreen(
             Box(modifier = Modifier.weight(0.28f).fillMaxHeight().background(PanelBg)) {
                 LeftPanel(
                     selectedItem = selectedItem,
+                    listState = leftListState,
                     focusMap = leftFocusMap,
                     enabled = leftActive,
                     onItemFocused = { selectedItem = it },
@@ -265,7 +388,7 @@ fun SetupScreen(
                         if (event.type == KeyEventType.KeyDown) {
                             when (event.key) {
                                 Key.DirectionLeft, Key.Back, Key.Escape -> {
-                                    try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {}
+                                    focusLeftMenu()
                                     true
                                 }
                                 else -> false
@@ -280,9 +403,10 @@ fun SetupScreen(
                     infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered,
                     deviceId = deviceId, ip = ip,
                     hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
-                    canRequestBatteryExemption = canRequestBatteryExemption,
+                    canRequestBatteryExemption = canRequestBatteryExemption, hasRemapPermission = hasRemapPermission,
+                    buttonMappings = buttonMappings, remapConnected = remapConnected,
                     appVersion = appVersion, rightFocus = rightFocus, enabled = leftActive,
-                    onNavigateLeft = { try { leftFocusMap[selectedItem]?.requestFocus() } catch (_: Exception) {} },
+                    onNavigateLeft = ::focusLeftMenu,
                     onToggle = { id ->
                         when (id) {
                             SId.PIXEL_SHIFT -> OverlayStateStore.updateInfoValues(InfoValues(settings = SettingsValues(pixelShift = !pixelShift)))
@@ -295,7 +419,9 @@ fun SetupScreen(
                     onRequestOverlayPermission = onRequestOverlayPermission,
                     onRequestBatteryExemption = onRequestBatteryExemption,
                     onStartService = onStartService, onStopService = onStopService,
-                    onRestartService = onRestartService, onClearFixedNotifications = onClearFixedNotifications
+                    onRestartService = onRestartService, onClearFixedNotifications = onClearFixedNotifications,
+                    onOpenAccessibilitySettings = onOpenAccessibilitySettings,
+                    onAddMapping = ::startMappingCapture, onEditMapping = ::editMapping
                 )
             }
         }
@@ -322,18 +448,21 @@ fun SetupScreen(
                         .align(Alignment.CenterEnd).background(PanelBg).padding(24.dp)
                 ) {
                     lastSelector?.let { state ->
-                        SelectorContent(
-                            state = state,
-                            onSelect = { idx -> applyValue(state.id, idx.toString()); dismissDialog() },
-                            onDismiss = dismissDialog
-                        )
+                        // Keyed so each step of a multi-step flow starts with fresh focus
+                        key(state) {
+                            SelectorContent(
+                                state = state,
+                                onSelect = { idx -> onSelectorPick(state.id, idx) },
+                                onDismiss = dismissDialog
+                            )
+                        }
                     }
                 }
             }
         }
 
-        // ---- Centered dialogs (slider, text input) ----
-        if (dialog is DialogState.Slider || dialog is DialogState.TextInput) {
+        // ---- Centered dialogs (slider, text input, key capture) ----
+        if (dialog is DialogState.Slider || dialog is DialogState.TextInput || dialog is DialogState.Capture) {
             Box(
                 modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)),
                 contentAlignment = Alignment.Center
@@ -353,6 +482,11 @@ fun SetupScreen(
                             onSave = { id, v -> applyValue(id, v); dismissDialog() },
                             onDismiss = dismissDialog
                         )
+                        DialogState.Capture -> CaptureContent(
+                            serviceConnected = remapConnected,
+                            onCaptured = ::onKeyCaptured,
+                            onDismiss = dismissDialog
+                        )
                         else -> {}
                     }
                 }
@@ -366,6 +500,7 @@ fun SetupScreen(
 @Composable
 private fun LeftPanel(
     selectedItem: SId,
+    listState: LazyListState,
     focusMap: Map<SId, FocusRequester>,
     enabled: Boolean,
     onItemFocused: (SId) -> Unit,
@@ -379,6 +514,7 @@ private fun LeftPanel(
         )
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             menuEntries.forEach { entry ->
@@ -406,7 +542,7 @@ private fun LeftPanel(
         }
     }
     LaunchedEffect(Unit) {
-        try { focusMap[SId.ABOUT]?.requestFocus() } catch (_: Exception) {}
+        try { focusMap[selectedItem]?.requestFocus() } catch (_: Exception) {}
     }
 }
 
@@ -466,12 +602,16 @@ private fun RightPanel(
     infoValues: InfoValues,
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
+    hasRemapPermission: Boolean,
+    buttonMappings: List<ButtonMapping>, remapConnected: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     onNavigateLeft: () -> Unit,
     onToggle: (SId) -> Unit, onEdit: (SId) -> Unit,
     onRequestOverlayPermission: () -> Unit, onRequestBatteryExemption: () -> Unit,
     onStartService: () -> Unit, onStopService: () -> Unit,
-    onRestartService: () -> Unit, onClearFixedNotifications: () -> Unit
+    onRestartService: () -> Unit, onClearFixedNotifications: () -> Unit,
+    onOpenAccessibilitySettings: () -> Unit,
+    onAddMapping: () -> Unit, onEditMapping: (ButtonMapping) -> Unit
 ) {
     val settings = infoValues.effective()
 
@@ -488,6 +628,7 @@ private fun RightPanel(
             infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered, deviceId = deviceId, ip = ip,
             hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
             canRequestBatteryExemption = canRequestBatteryExemption,
+            hasRemapPermission = hasRemapPermission, remapConnected = remapConnected,
             appVersion = appVersion, rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onRequestOverlayPermission = onRequestOverlayPermission,
             onRequestBatteryExemption = onRequestBatteryExemption
@@ -521,6 +662,17 @@ private fun RightPanel(
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onStartService = onStartService, onStopService = onStopService, onRestartService = onRestartService
         )
+        SId.REMAP_SERVICE -> RemapServiceDetail(
+            connected = remapConnected,
+            rightFocus = rightFocus, backToLeft = backToLeft,
+            onOpenSettings = onOpenAccessibilitySettings
+        )
+        SId.BUTTON_MAPPINGS -> ButtonMappingsDetail(
+            mappings = buttonMappings, serviceConnected = remapConnected,
+            rightFocus = rightFocus, backToLeft = backToLeft,
+            onAdd = onAddMapping, onEdit = onEditMapping
+        )
+        SId.MAP_PRESS, SId.MAP_ACTION, SId.MAP_APP, SId.MAP_EDIT -> {}
         SId.CLEAR_FIXED -> ActionDetail(
             meta = settingMeta[SId.CLEAR_FIXED]!!, buttonText = "Clear All", buttonColor = Orange,
             rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
@@ -550,6 +702,7 @@ private fun AboutDetail(
     infoValues: InfoValues,
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
+    hasRemapPermission: Boolean, remapConnected: Boolean,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     backToLeft: Modifier,
     onRequestOverlayPermission: () -> Unit, onRequestBatteryExemption: () -> Unit
@@ -582,6 +735,14 @@ private fun AboutDetail(
                 hasBatteryExemption -> InfoLine("Battery", "Exempt", Green)
                 canRequestBatteryExemption -> InfoLine("Battery", "Not Exempt", Orange)
                 else -> InfoLine("Battery", "Not Required", TextMuted)
+            }
+            // Remapping is optional, so "off" is muted rather than an error
+            InfoLine("Remap Permission", if (hasRemapPermission) "Granted" else "Not Granted",
+                if (hasRemapPermission) Green else TextMuted)
+            when {
+                remapConnected -> InfoLine("Remap Service", "Running", Green)
+                hasRemapPermission -> InfoLine("Remap Service", "Not Running", Red)
+                else -> InfoLine("Remap Service", "Off", TextMuted)
             }
         }
 
@@ -789,6 +950,119 @@ private fun ActionDetail(
 }
 
 @Composable
+private fun RemapServiceDetail(
+    connected: Boolean,
+    rightFocus: FocusRequester, backToLeft: Modifier,
+    onOpenSettings: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = Modifier.fillMaxSize()
+    ) {
+        DetailHeader(settingMeta[SId.REMAP_SERVICE]!!)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            if (connected) "Service is enabled" else "Service is disabled",
+            color = if (connected) Green else Red, fontSize = 16.sp
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onOpenSettings,
+            colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            shape = RoundedCornerShape(10.dp),
+            modifier = backToLeft
+                .onFocusChanged { focused = it.isFocused }
+                .focusRequester(rightFocus)
+                .let { if (focused) it.border(2.dp, TextPrimary, RoundedCornerShape(10.dp)) else it }
+                .height(48.dp)
+        ) { Text("Accessibility Settings", fontSize = 15.sp) }
+        if (!connected) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Turn on \"OverSight Button Remapping\". If the switch is greyed out (Android 13+), first choose " +
+                    "\"Allow restricted settings\" from OverSight's App info menu.",
+                color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ButtonMappingsDetail(
+    mappings: List<ButtonMapping>, serviceConnected: Boolean,
+    rightFocus: FocusRequester, backToLeft: Modifier,
+    onAdd: () -> Unit, onEdit: (ButtonMapping) -> Unit
+) {
+    val sorted = mappings.sortedWith(compareBy({ ButtonMapping.keyName(it.keyCode) }, { it.longPress }))
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+    ) {
+        DetailHeader(settingMeta[SId.BUTTON_MAPPINGS]!!)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            if (serviceConnected) "Mappings are paused while these settings are open."
+            else "The Remap Service is disabled, so mappings won't apply.",
+            color = if (serviceConnected) TextMuted else Orange, fontSize = 12.sp
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        MappingRow(
+            title = "Add Mapping", subtitle = null, icon = "plus",
+            focusRequester = rightFocus, backToLeft = backToLeft, onClick = onAdd
+        )
+        sorted.forEach { mapping ->
+            Spacer(modifier = Modifier.height(8.dp))
+            val shortLost = mapping.longPress && !ButtonMapping.canReproduceDefault(mapping.keyCode) &&
+                mappings.none { it.matches(mapping.keyCode, longPress = false) }
+            MappingRow(
+                title = "${mapping.title()}  \u2192  ${mapping.actionLabel()}",
+                subtitle = if (shortLost) "Short press does nothing" else null,
+                icon = if (mapping.longPress) "gesture-tap-hold" else "gesture-tap",
+                focusRequester = null, backToLeft = backToLeft, onClick = { onEdit(mapping) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MappingRow(
+    title: String, subtitle: String?, icon: String,
+    focusRequester: FocusRequester?, backToLeft: Modifier,
+    onClick: () -> Unit
+) {
+    var focused by remember { mutableStateOf(false) }
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = Surface),
+        shape = RoundedCornerShape(10.dp),
+        modifier = backToLeft
+            .onFocusChanged { focused = it.isFocused }
+            .let { if (focusRequester != null) it.focusRequester(focusRequester) else it }
+            .let { if (focused) it.border(2.dp, Accent, RoundedCornerShape(10.dp)) else it }
+            .fillMaxWidth(0.8f)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            MdiIcon(icon, tint = Accent, size = 20.dp)
+            Column {
+                Text(title, color = TextPrimary, fontSize = 15.sp)
+                if (subtitle != null) Text(subtitle, color = Orange, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/** "Back" or "Back (long press)", identifying a mapping's trigger. */
+private fun ButtonMapping.title() =
+    ButtonMapping.keyName(keyCode) + if (longPress) " (long press)" else ""
+
+@Composable
 private fun DetailHeader(meta: SettingMeta) {
     Box(
         modifier = Modifier.size(72.dp).background(Accent.copy(alpha = 0.15f), CircleShape),
@@ -831,39 +1105,109 @@ private fun SelectorContent(
         Text(state.title, color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.height(20.dp))
 
-        state.options.forEachIndexed { index, option ->
-            var focused by remember { mutableStateOf(false) }
-            val isSelected = index == state.selected
+        // Scrolls for long lists (actions, apps); focused rows bring themselves into view
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            state.options.forEachIndexed { index, option ->
+                var focused by remember { mutableStateOf(false) }
+                val isSelected = index == state.selected
 
-            Row(
-                modifier = Modifier.fillMaxWidth()
-                    .onFocusChanged { focused = it.isFocused }
-                    .let { if (index == 0) it.focusRequester(firstFocus) else it }
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown &&
-                            (event.key == Key.Enter || event.key == Key.DirectionCenter)
-                        ) { onSelect(index); true }
-                        else if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) true // consume
-                        else false
-                    }
-                    .focusable()
-                    .background(if (focused) Surface else Color.Transparent, RoundedCornerShape(8.dp))
-                    .let { if (focused) it.border(1.dp, Accent, RoundedCornerShape(8.dp)) else it }
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                MdiIcon(
-                    if (isSelected) "radiobox-marked" else "radiobox-blank",
-                    tint = if (isSelected) Accent else TextMuted, size = 22.dp
-                )
-                Text(option, color = TextPrimary, fontSize = 16.sp)
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
+                        .let { if (index == 0) it.focusRequester(firstFocus) else it }
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown &&
+                                (event.key == Key.Enter || event.key == Key.DirectionCenter)
+                            ) {
+                                // A held OK must not also pick in the next step of a multi-step flow
+                                if (event.nativeKeyEvent.repeatCount == 0) onSelect(index)
+                                true
+                            }
+                            else if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) true // consume
+                            else false
+                        }
+                        .focusable()
+                        .background(if (focused) Surface else Color.Transparent, RoundedCornerShape(8.dp))
+                        .let { if (focused) it.border(1.dp, Accent, RoundedCornerShape(8.dp)) else it }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    MdiIcon(
+                        if (isSelected) "radiobox-marked" else "radiobox-blank",
+                        tint = if (isSelected) Accent else TextMuted, size = 22.dp
+                    )
+                    Text(option, color = TextPrimary, fontSize = 16.sp)
+                }
             }
         }
     }
 
     LaunchedEffect(Unit) {
         try { firstFocus.requestFocus() } catch (_: Exception) {}
+    }
+}
+
+// ==================== KEY CAPTURE (centered dialog) ====================
+
+private const val CAPTURE_TIMEOUT_MS = 10_000L
+
+/**
+ * Waits for the remote button to remap. ButtonRemapService does the capturing, so buttons the
+ * activity never receives (Home, vendor app buttons) can be captured too; Back is captured like
+ * any other button, so the dialog times out instead.
+ */
+@Composable
+private fun CaptureContent(
+    serviceConnected: Boolean,
+    onCaptured: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    val focusReq = remember { FocusRequester() }
+
+    if (serviceConnected) {
+        DisposableEffect(Unit) {
+            OverlayStateStore.keyCaptureListener = onCaptured
+            onDispose { OverlayStateStore.keyCaptureListener = null }
+        }
+        LaunchedEffect(Unit) {
+            delay(CAPTURE_TIMEOUT_MS)
+            onDismiss()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .focusRequester(focusReq)
+            .onPreviewKeyEvent { event ->
+                // Only reached when the service isn't capturing
+                if (event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.Back || event.key == Key.Escape || event.key == Key.Enter || event.key == Key.DirectionCenter)
+                ) onDismiss()
+                true
+            }
+            .focusable(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        MdiIcon("remote-tv", tint = Accent, size = 40.dp)
+        Spacer(modifier = Modifier.height(12.dp))
+        if (serviceConnected) {
+            Text("Press a Button", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Press the remote button you want to remap.", color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Cancels after ${CAPTURE_TIMEOUT_MS / 1000} seconds", color = TextMuted, fontSize = 12.sp)
+        } else {
+            Text("Remap Service Disabled", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Turn on the Remap Service before adding mappings.", color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("OK / Back to close", color = TextMuted, fontSize = 12.sp)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        try { focusReq.requestFocus() } catch (_: Exception) {}
     }
 }
 
