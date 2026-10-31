@@ -276,7 +276,8 @@ private fun ClockFixedRow(
  * State machine:
  * - EXPANDED: showing icon + text. After showDuration seconds -> COLLAPSED
  * - COLLAPSED: icon only. If repeatExpand && collapseDuration -> after collapseDuration -> EXPANDED
- * - If showDuration is null or text is empty: always expanded (no collapse behavior)
+ * - If showDuration is null or 0, or text is empty: always expanded (no collapse behavior).
+ *   0 lets a partial update turn collapsing off, since null keeps the existing value.
  */
 @Composable
 private fun CollapsibleBadge(notification: FixedNotification) {
@@ -284,7 +285,7 @@ private fun CollapsibleBadge(notification: FixedNotification) {
     val showDuration = notification.showDuration
     val collapseDuration = notification.collapseDuration
     val repeatExpand = notification.repeatExpand ?: false
-    val shouldCollapse = hasText && showDuration != null
+    val shouldCollapse = hasText && showDuration != null && showDuration > 0
 
     var collapsed by remember(notification.id) { mutableStateOf(false) }
 

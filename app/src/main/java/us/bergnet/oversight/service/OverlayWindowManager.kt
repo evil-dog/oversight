@@ -32,12 +32,14 @@ class OverlayWindowManager(private val context: Context) {
     fun show(content: @Composable () -> Unit) {
         if (composeView != null) return
 
+        // No FLAG_NOT_TOUCHABLE: Android 12L+ clamps untouchable overlays to 0.8 alpha, which made
+        // video, the clock and the dimmer translucent. Pointer input is blocked instead; D-pad and
+        // remote keys are unaffected since the window isn't focusable.
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.MATCH_PARENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
                     or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                     or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT

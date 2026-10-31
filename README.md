@@ -184,7 +184,7 @@ Create or update a persistent badge. All fields except `id` are optional for upd
 - `size` — `small` | `normal` | `big`
 - `expiration` — a duration from now, combining units `y` `w` `d` `h` `m` `s` (e.g. `30s`, `5m`, `1d12h`), a plain number of seconds (`90`), or a Unix timestamp in seconds or milliseconds
 - `expirationEpoch` — Unix epoch in **milliseconds**; takes priority over `expiration`
-- `showDuration` — seconds to show text before collapsing to icon-only
+- `showDuration` — seconds to show text before collapsing to icon-only; `0` turns collapsing off and expands a collapsed badge
 - `collapseDuration` — seconds to stay collapsed before re-expanding (requires `repeatExpand: true`)
 - `repeatExpand` — whether to cycle expand/collapse continuously
 - `text` also accepts `message` or `title` as aliases
@@ -250,7 +250,7 @@ Compatible clients (e.g. the OverSight Home Assistant integration) discover the 
 An API test script covers every endpoint and parameter:
 
 ```bash
-./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.119 5001
+./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.239 5001
 PAUSE=0 ./scripts/test_api.sh         # API-only, skip visual prompts
 ```
 

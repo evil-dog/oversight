@@ -33,19 +33,19 @@ docker run --rm --network host \
   -v $(pwd):/project \
   -v /home/evildog/.android-docker:/root/.android \
   oversight-build \
-  bash -c 'adb connect 192.168.24.119:5555 && sleep 2 && adb install -r /project/app/build/outputs/apk/debug/app-debug.apk'
+  bash -c 'adb connect 192.168.24.239:5555 && sleep 2 && adb install -r /project/app/build/outputs/apk/debug/app-debug.apk'
 ```
 
 **Keystore note:** `/home/evildog/.android-docker` is mounted at `/root/.android/` and provides both the ADB keys and the persistent `debug.keystore` used for Gradle signing (100-year validity).
 
 **SDK note:** If AGP or a library requires a newer `compileSdk` or build-tools, bump `COMPILE_SDK` / `BUILD_TOOLS` in `docker/Dockerfile` and rebuild the image — packages AGP auto-downloads at build time are lost when the container exits.
 
-**Device:** Shield TV at `192.168.24.119:5555`, API on port `5001`.
+**Device:** onn Google TV at `192.168.24.239:5555`, API on port `5001`.
 
 ## Key Architecture Decisions
 
 ### Overlay Window
-`OverlayWindowManager` adds a `ComposeView` as `TYPE_APPLICATION_OVERLAY` using `FLAG_NOT_FOCUSABLE | FLAG_NOT_TOUCHABLE`. It creates a custom `LifecycleOwner` and `SavedStateRegistryOwner` (required for Compose in non-Activity contexts), and sets up a `Recomposer` manually.
+`OverlayWindowManager` adds a `ComposeView` as `TYPE_APPLICATION_OVERLAY` using `FLAG_NOT_FOCUSABLE` only. Don't add `FLAG_NOT_TOUCHABLE`: Android 12L+ clamps untouchable overlay windows to 0.8 alpha (check with `dumpsys window windows`), making video, clock and dimmer translucent. The trade-off is that the overlay blocks mouse/touch input; D-pad and remote keys still reach the app underneath. It creates a custom `LifecycleOwner` and `SavedStateRegistryOwner` (required for Compose in non-Activity contexts), and sets up a `Recomposer` manually.
 
 ### Video in Overlay Windows
 `SurfaceView` (used by default in ExoPlayer's `PlayerView`) creates its own independent window surface and renders full-screen black in `TYPE_APPLICATION_OVERLAY` windows. Use raw `TextureView` instead — it composites within the normal view hierarchy. ExoPlayer setup (including `prepare()`) must be deferred to `SurfaceTextureListener.onSurfaceTextureAvailable`. RTSP streams require TCP transport: `RtspMediaSource.Factory().setForceUseRtpTcp(true)` — many servers reject UDP with error 461.
@@ -97,7 +97,7 @@ See `README.md` for the full REST API; routes live in `server/routes/`.
 ## Testing
 
 ```bash
-./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.119 5001
+./scripts/test_api.sh [HOST] [PORT]   # defaults: 192.168.24.239 5001
 PAUSE=0 ./scripts/test_api.sh         # API-only, skip visual prompts
 ```
 

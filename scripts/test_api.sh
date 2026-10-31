@@ -5,10 +5,10 @@
 # Usage:
 #   ./scripts/test_api.sh [HOST] [PORT]
 #
-# Defaults to Shield TV at 192.168.24.119:5001.
+# Defaults to the onn Google TV at 192.168.24.239:5001.
 # Set PAUSE=0 to skip visual-check prompts (visual tests will be marked skipped).
 
-HOST="${1:-192.168.24.119}"
+HOST="${1:-192.168.24.239}"
 PORT="${2:-5001}"
 BASE="http://${HOST}:${PORT}"
 PAUSE="${PAUSE:-1}"
