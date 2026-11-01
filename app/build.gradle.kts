@@ -83,12 +83,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
 
     // Ktor Server
-    implementation("io.ktor:ktor-server-netty:3.6.0") {
+    implementation("io.ktor:ktor-server-netty:3.6.1") {
         // Ktor 3.6+ pulls in HTTP/3 with desktop-only QUIC native jars (linux/osx/windows)
         exclude(group = "io.netty", module = "netty-codec-native-quic")
     }
-    implementation("io.ktor:ktor-server-content-negotiation:3.6.0")
-    implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
+    implementation("io.ktor:ktor-server-content-negotiation:3.6.1")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.1")
 
     // Serialization
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.12.0")
@@ -122,7 +122,7 @@ dependencies {
     testImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
-    testImplementation("io.ktor:ktor-server-test-host:3.6.0")
+    testImplementation("io.ktor:ktor-server-test-host:3.6.1")
     testImplementation("org.robolectric:robolectric:4.17")
     testImplementation("io.github.takahirom.roborazzi:roborazzi:1.77.0")
     testImplementation("io.github.takahirom.roborazzi:roborazzi-compose:1.77.0")
