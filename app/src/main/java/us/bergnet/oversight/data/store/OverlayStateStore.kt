@@ -64,6 +64,10 @@ object OverlayStateStore {
     private val _deviceId = MutableStateFlow("")
     val deviceId: StateFlow<String> = _deviceId.asStateFlow()
 
+    /** Home Assistant webhook that AddressAnnouncer posts this device's address to; null when unset. */
+    private val _webhookUrl = MutableStateFlow<String?>(null)
+    val webhookUrl: StateFlow<String?> = _webhookUrl.asStateFlow()
+
     // --- Accessors (defaults live in InfoValues.effective()) ---
 
     fun getDeviceName(): String = _infoValues.value.effective().deviceName
@@ -210,6 +214,10 @@ object OverlayStateStore {
 
     fun setDeviceId(id: String) {
         _deviceId.value = id
+    }
+
+    fun setWebhookUrl(url: String?) {
+        _webhookUrl.value = url
     }
 
     fun setLayoutList(list: NotificationLayoutList) {

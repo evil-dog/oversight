@@ -58,6 +58,9 @@ docker run --rm --network host \
 ### mDNS
 `ZeroconfAdvertiser` uses Android `NsdManager`. A fresh `RegistrationListener` is created per registration to avoid NsdManager race conditions. Re-registers automatically when `deviceName` or `port` changes.
 
+### Address Announcements
+`AddressAnnouncer` posts `{deviceId, host, port, deviceName}` to the Home Assistant webhook stored by `POST /set/webhook` (persisted as `webhook_url`, reported as `status.webhookConfigured`). It watches the default network via `registerDefaultNetworkCallback` and announces on start and when the IPv4 address, port or webhook changes (debounced 2 s, `collectLatest` cancels a stale retry loop). Every failure except a `400` rejection is retried — Home Assistant returns 404 while restarting and 503 while it can't yet reach the new address.
+
 ### Remote Button Remapping
 `ButtonRemapService` is an `AccessibilityService` with `flagRequestFilterKeyEvents`; the press logic (short vs long, capture, consumption) lives in Android-free `ButtonRemapper` for unit tests. Accessibility services can't inject key codes, so mappings run actions (`performGlobalAction`, `AudioManager`, `startActivity`), and once a DOWN is consumed the whole press is. A long-press-only mapping restores the short press only for keys `ButtonMapping.canReproduceDefault()` covers. Mappings are bypassed while `SetupActivity` is resumed (`OverlayStateStore.isSetupForeground`) so a bad mapping can't block fixing it; key capture for new mappings goes through the service (`keyCaptureListener`) so Home and vendor buttons can be captured.
 

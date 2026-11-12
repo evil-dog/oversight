@@ -96,6 +96,7 @@ Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Uns
 - `version` — app `versionCode` (`major*10000 + minor*100 + patch`, e.g. `302` for v0.3.2)
 - `isScreenOn` — whether the TV screen is on
 - `permissionState` — `GRANTED` when the overlay permission is granted, otherwise `DENIED_SETTING_AVAILABLE`
+- `webhookConfigured` — whether an address-announcement webhook is set (see `POST /set/webhook`)
 - `batteryOptimizationState` — `ENABLED` when the app is exempt from battery optimization; `SKIPPED` when it isn't but the device can grant it (setup screen); `BLOCKED` when the device has no way to grant it (e.g. Google TV — only via `adb shell dumpsys deviceidle whitelist +us.bergnet.oversight`)
 
 #### `POST /set/overlay`
@@ -133,6 +134,12 @@ Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Uns
   "displayDebug": false
 }
 ```
+
+#### `POST /set/webhook`
+```json
+{ "url": "http://192.168.25.2:8123/api/webhook/oversight_…" }
+```
+Sets the URL the device announces its address to (see [Address Announcements](#address-announcements)); `null` or `""` clears it. Must be an absolute `http://` or `https://` URL. The Home Assistant integration sets this itself.
 
 ### Notifications
 
@@ -244,6 +251,14 @@ The service advertises itself on the local network:
 - **TXT records:** `deviceName`, `port`, `version`, `deviceId`
 
 Compatible clients (e.g. the OverSight Home Assistant integration) discover the device automatically without manual IP configuration.
+
+## Address Announcements
+
+mDNS doesn't cross subnets or VLANs. So that Home Assistant can still follow the device when its IP changes, the integration gives the device a webhook URL (`POST /set/webhook`) pointing straight at Home Assistant's own address, bypassing any reverse proxy. The device then posts
+```json
+{ "deviceId": "…", "host": "192.168.24.77", "port": 5001, "deviceName": "Living Room TV" }
+```
+to it when the service starts and whenever its IP, port or the webhook changes. Failed posts are retried with backoff (5 s up to 5 min, then every 15 min); a `400` from Home Assistant (rejected) is not retried.
 
 ## Testing
 

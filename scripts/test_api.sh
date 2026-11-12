@@ -385,6 +385,16 @@ do_post "/set/settings" '{"pixelShift": false}'
 # NOTE: remotePort intentionally omitted — changing it would break the test session.
 # Manual test: POST {"remotePort": 5001} to verify it accepts the value.
 
+# POST /set/webhook: only rejections are tested, so a webhook set by Home Assistant is left alone
+test_name "webhook: non-http URL rejected"
+do_post_expect_fail "/set/webhook" '{"url": "ftp://example.com/hook"}'
+
+test_name "webhook: relative URL rejected"
+do_post_expect_fail "/set/webhook" '{"url": "/api/webhook/x"}'
+
+test_name "webhook: status reports webhookConfigured"
+check_info "isinstance(r['status'].get('webhookConfigured'), bool)" "status.webhookConfigured missing"
+
 # ---------------------------------------------------------------------------
 # 5. Progress bar color (POST / — notification layout)
 # ---------------------------------------------------------------------------

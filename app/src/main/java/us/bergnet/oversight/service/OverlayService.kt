@@ -24,6 +24,7 @@ import us.bergnet.oversight.OverSightApplication
 import us.bergnet.oversight.R
 import us.bergnet.oversight.ui.overlay.OverlayContent
 import us.bergnet.oversight.data.store.OverlayStateStore
+import us.bergnet.oversight.discovery.AddressAnnouncer
 import us.bergnet.oversight.discovery.ZeroconfAdvertiser
 import us.bergnet.oversight.receiver.ScreenStateReceiver
 import us.bergnet.oversight.server.HttpServer
@@ -51,6 +52,7 @@ class OverlayService : Service() {
     private val screenStateReceiver = ScreenStateReceiver()
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var zeroconfAdvertiser: ZeroconfAdvertiser? = null
+    private var addressAnnouncer: AddressAnnouncer? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -92,6 +94,9 @@ class OverlayService : Service() {
 
                 observePortChanges()
 
+                // Tell Home Assistant our address where mDNS can't reach it (no-op until it sets a webhook)
+                addressAnnouncer = AddressAnnouncer(this@OverlayService, serviceScope).also { it.start() }
+
                 OverlayStateStore.setServiceRunning(true)
                 Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
             }
@@ -108,6 +113,9 @@ class OverlayService : Service() {
 
         zeroconfAdvertiser?.unregister()
         zeroconfAdvertiser = null
+
+        addressAnnouncer?.stop()
+        addressAnnouncer = null
 
         httpServer?.stop()
         httpServer = null

@@ -32,6 +32,7 @@ private fun Context.currentStatus(): StatusValues {
             else -> BatteryOptimizationState.SKIPPED
         },
         isScreenOn = OverlayStateStore.isScreenOn.value,
+        webhookConfigured = OverlayStateStore.webhookUrl.value != null,
     )
 }
 

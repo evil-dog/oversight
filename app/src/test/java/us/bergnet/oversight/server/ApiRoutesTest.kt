@@ -53,6 +53,7 @@ class ApiRoutesTest {
         OverlayStateStore.clearNotifications()
         OverlayStateStore.setDeviceId("test-device")
         OverlayStateStore.setScreenOn(true)
+        OverlayStateStore.setWebhookUrl(null)
     }
 
     private fun api(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
@@ -197,5 +198,38 @@ class ApiRoutesTest {
             assertTrue("$path $body: $message", message.startsWith("hotCorner must be one of") || "must be between" in message)
         }
         assertEquals(InfoValues(), OverlayStateStore.infoValues.value)
+    }
+
+    // --- Webhook ---
+
+    private suspend fun ApplicationTestBuilder.webhookConfigured(): Boolean =
+        client.get("/info").json().result.getValue("status").jsonObject
+            .getValue("webhookConfigured").jsonPrimitive.boolean
+
+    @Test
+    fun setWebhookStoresUrlAndReportsIt() = api {
+        assertFalse(webhookConfigured())
+
+        val url = "http://192.168.25.2:8123/api/webhook/oversight_abc"
+        val set = client.post("/set/webhook") { setBody("""{"url":" $url "}""") }
+        assertEquals(HttpStatusCode.OK, set.status)
+        assertEquals(url, OverlayStateStore.webhookUrl.value)
+        assertTrue(webhookConfigured())
+
+        val cleared = client.post("/set/webhook") { setBody("""{"url":null}""") }
+        assertEquals(HttpStatusCode.OK, cleared.status)
+        assertNull(OverlayStateStore.webhookUrl.value)
+        assertFalse(webhookConfigured())
+    }
+
+    @Test
+    fun invalidWebhookUrlReturns400AndKeepsCurrent() = api {
+        val url = "http://192.168.25.2:8123/api/webhook/oversight_abc"
+        OverlayStateStore.setWebhookUrl(url)
+        listOf("ftp://host/x", "not a url", "/api/webhook/x", "http:///nohost").forEach { bad ->
+            val response = client.post("/set/webhook") { setBody("""{"url":"$bad"}""") }
+            assertEquals(bad, HttpStatusCode.BadRequest, response.status)
+        }
+        assertEquals(url, OverlayStateStore.webhookUrl.value)
     }
 }

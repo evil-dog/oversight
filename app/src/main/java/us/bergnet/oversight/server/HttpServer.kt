@@ -76,5 +76,6 @@ fun Application.apiModule(context: Context) {
         settingsRoutes(context)
         overlayRoutes()
         layoutRoutes()
+        webhookRoutes()
     }
 }
