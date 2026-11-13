@@ -12,5 +12,7 @@ data class StatusValues(
     val batteryOptimizationState: BatteryOptimizationState? = null,
     val isScreenOn: Boolean? = null,
     /** Whether a Home Assistant webhook is set to announce address changes to. */
-    val webhookConfigured: Boolean? = null
+    val webhookConfigured: Boolean? = null,
+    /** The home screen app registered via POST /host, or null. */
+    val host: HostReport? = null
 )

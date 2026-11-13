@@ -42,6 +42,9 @@ class SetupActivity : ComponentActivity() {
     private val pendingSteps = mutableStateOf<List<OnboardingStep>>(emptyList())
     private val isFeatureIntro = mutableStateOf(false)
     private val initialSettingsItem = mutableStateOf(SId.ABOUT)
+    // Intros skipped because they don't apply right now (remapping managed by Foyer); not marked seen,
+    // so they still show if that changes
+    private var skippedIntros: Set<String> = emptySet()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,9 +57,10 @@ class SetupActivity : ComponentActivity() {
             app.stateLoaded.await()
 
             val complete = app.persistence.isOnboardingComplete()
+            skippedIntros = FEATURE_INTROS.filterValues { isStepManagedElsewhere(it) }.keys
             if (complete) {
                 val seen = app.persistence.seenFeatureIntros()
-                val unseen = FEATURE_INTROS.filterKeys { it !in seen }
+                val unseen = FEATURE_INTROS.filterKeys { it !in seen && it !in skippedIntros }
                 // Already set up (e.g. enabled via ADB): nothing to introduce
                 val (done, todo) = unseen.entries.partition { isStepDone(it.value) }
                 if (done.isNotEmpty()) app.persistence.markFeatureIntrosSeen(done.map { it.key })
@@ -67,7 +71,7 @@ class SetupActivity : ComponentActivity() {
                     OnboardingStep.WELCOME,
                     OnboardingStep.OVERLAY,
                     OnboardingStep.BATTERY.takeIf { canRequestBatteryExemption },
-                    OnboardingStep.BUTTON_REMAP,
+                    OnboardingStep.BUTTON_REMAP.takeUnless { isStepManagedElsewhere(it) },
                 )
             }
             onboardingComplete.value = complete
@@ -103,7 +107,7 @@ class SetupActivity : ComponentActivity() {
                             lifecycleScope.launch {
                                 app.persistence.setOnboardingComplete()
                                 // First-run onboarding covers every feature, so none needs an intro later
-                                app.persistence.markFeatureIntrosSeen(FEATURE_INTROS.keys)
+                                app.persistence.markFeatureIntrosSeen(FEATURE_INTROS.keys - skippedIntros)
                             }
                             // Straight to the new feature's settings if it was just turned on
                             if (featureIntro && OnboardingStep.BUTTON_REMAP in steps && remapEnabled) {
@@ -170,6 +174,10 @@ class SetupActivity : ComponentActivity() {
         hasBatteryExemption.value = pm.isIgnoringBatteryOptimizations(packageName)
         hasRemapService.value = isRemapServiceEnabled()
     }
+
+    /** Button remapping is done by Foyer while it holds remapActive, so its setup step doesn't apply. */
+    private fun isStepManagedElsewhere(step: OnboardingStep) =
+        step == OnboardingStep.BUTTON_REMAP && OverlayStateStore.isRemapManagedExternally()
 
     private fun isStepDone(step: OnboardingStep) = when (step) {
         OnboardingStep.BUTTON_REMAP -> hasRemapService.value

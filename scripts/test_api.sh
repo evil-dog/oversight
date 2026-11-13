@@ -392,6 +392,13 @@ do_post_expect_fail "/set/webhook" '{"url": "ftp://example.com/hook"}'
 test_name "webhook: relative URL rejected"
 do_post_expect_fail "/set/webhook" '{"url": "/api/webhook/x"}'
 
+# POST /host is loopback-only; this script runs from another machine, so it must be refused
+test_name "host: rejected from the LAN"
+do_post_expect_fail "/host" '{"package": "us.bergnet.foyer", "homeVisible": true}'
+
+test_name "host: status reports host (null or object)"
+check_info "'host' in r['status']" "status.host missing"
+
 test_name "webhook: status reports webhookConfigured"
 check_info "isinstance(r['status'].get('webhookConfigured'), bool)" "status.webhookConfigured missing"
 

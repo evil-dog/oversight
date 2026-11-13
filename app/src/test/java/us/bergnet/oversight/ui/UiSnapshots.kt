@@ -26,6 +26,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import us.bergnet.oversight.data.model.HostState
 import us.bergnet.oversight.data.model.ButtonMapping
 import us.bergnet.oversight.data.model.FixedNotification
 import us.bergnet.oversight.data.model.InfoValues
@@ -100,6 +101,8 @@ class UiSnapshots {
         OverlayStateStore.setMdnsRegistered(true)
         OverlayStateStore.setButtonMappings(emptyList())
         OverlayStateStore.setRemapServiceConnected(false)
+        OverlayStateStore.setHostState(HostState())
+        OverlayStateStore.clock = System::currentTimeMillis
         while (OverlayStateStore.currentNotification.value != null) OverlayStateStore.dismissCurrentNotification()
     }
 
@@ -116,6 +119,18 @@ class UiSnapshots {
         OverlayStateStore.setFixedNotifications(sampleFixed.map { it.withReceivedTime() })
         OverlayStateStore.enqueueNotification(sampleToast)
         capture("overlay_top_end") { TvBackdrop { OverlayContent() } }
+    }
+
+    /** Foyer's home screen is showing: it draws clock and badges itself, so only the toast remains. */
+    @Test
+    fun overlay_hostHomeVisible() {
+        OverlayStateStore.updateInfoValues(InfoValues(overlay = OverlayValues(clockOverlayVisibility = 100, hotCorner = "top_end")))
+        OverlayStateStore.setFixedNotifications(sampleFixed.map { it.withReceivedTime() })
+        OverlayStateStore.enqueueNotification(sampleToast)
+        OverlayStateStore.setHostState(
+            HostState(packageName = HostState.FOYER_PACKAGE, homeVisibleUntil = System.currentTimeMillis() + 60_000)
+        )
+        capture("overlay_host_home_visible") { TvBackdrop { OverlayContent() } }
     }
 
     @Test
@@ -305,6 +320,40 @@ class UiSnapshots {
                 onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
                 onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
                 appVersion = "1.2.3", initialItem = SId.BUTTON_MAPPINGS
+            )
+        }
+    }
+
+    @Test
+    fun setupScreen_buttonMappings_managedByFoyer() {
+        OverlayStateStore.setRemapServiceConnected(true)
+        OverlayStateStore.setHostState(HostState(packageName = HostState.FOYER_PACKAGE, remapActive = true))
+        OverlayStateStore.setButtonMappings(listOf(
+            ButtonMapping(KeyEvent.KEYCODE_BUTTON_1, false, RemapAction.LAUNCH_APP, "com.plexapp.android", "Plex"),
+            ButtonMapping(KeyEvent.KEYCODE_BACK, true, RemapAction.HOME),
+        ))
+        capture("setup_button_mappings_managed") {
+            SetupScreen(
+                hasOverlayPermission = true, hasBatteryExemption = true, hasRemapPermission = true, canRequestBatteryExemption = true,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
+                appVersion = "1.2.3", initialItem = SId.BUTTON_MAPPINGS
+            )
+        }
+    }
+
+    @Test
+    fun setupScreen_remapService_managedByFoyer() {
+        OverlayStateStore.setRemapServiceConnected(true)
+        OverlayStateStore.setHostState(HostState(packageName = HostState.FOYER_PACKAGE, remapActive = true))
+        capture("setup_remap_service_managed") {
+            SetupScreen(
+                hasOverlayPermission = true, hasBatteryExemption = true, hasRemapPermission = true, canRequestBatteryExemption = true,
+                onRequestOverlayPermission = {}, onRequestBatteryExemption = {},
+                onStartService = {}, onStopService = {}, onRestartService = {}, onClearFixedNotifications = {},
+                onOpenAccessibilitySettings = {}, loadLaunchableApps = { emptyList() },
+                appVersion = "1.2.3", initialItem = SId.REMAP_SERVICE
             )
         }
     }

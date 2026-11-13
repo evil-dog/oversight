@@ -53,6 +53,7 @@ class OverlayService : Service() {
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var zeroconfAdvertiser: ZeroconfAdvertiser? = null
     private var addressAnnouncer: AddressAnnouncer? = null
+    private var hostWatcher: HostWatcher? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -97,6 +98,9 @@ class OverlayService : Service() {
                 // Tell Home Assistant our address where mDNS can't reach it (no-op until it sets a webhook)
                 addressAnnouncer = AddressAnnouncer(this@OverlayService, serviceScope).also { it.start() }
 
+                // Drop a persisted host registration (and its remapping claim) that no longer holds
+                hostWatcher = HostWatcher(this@OverlayService).also { it.start() }
+
                 OverlayStateStore.setServiceRunning(true)
                 Log.d(TAG, "Service started, IP: ${NetworkUtils.getDeviceIpAddress()}, port: $port")
             }
@@ -116,6 +120,9 @@ class OverlayService : Service() {
 
         addressAnnouncer?.stop()
         addressAnnouncer = null
+
+        hostWatcher?.stop()
+        hostWatcher = null
 
         httpServer?.stop()
         httpServer = null

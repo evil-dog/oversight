@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 
 object OverlayStateStore {
     // Configuration
@@ -68,6 +69,13 @@ object OverlayStateStore {
     private val _webhookUrl = MutableStateFlow<String?>(null)
     val webhookUrl: StateFlow<String?> = _webhookUrl.asStateFlow()
 
+    /** Home screen app registered via POST /host (see HostState). */
+    private val _hostState = MutableStateFlow(HostState())
+    val hostState: StateFlow<HostState> = _hostState.asStateFlow()
+
+    /** Wall clock for host leases; tests replace it to expire a lease without waiting. */
+    @Volatile var clock: () -> Long = System::currentTimeMillis
+
     // --- Accessors (defaults live in InfoValues.effective()) ---
 
     fun getDeviceName(): String = _infoValues.value.effective().deviceName
@@ -75,6 +83,11 @@ object OverlayStateStore {
     fun getRemotePort(): Int = _infoValues.value.effective().remotePort
 
     fun isDisplayNotifications(): Boolean = _infoValues.value.effective().displayNotifications
+
+    /** True while a host (Foyer) does the button remapping; OverSight's remapper then passes keys through. */
+    fun isRemapManagedExternally(): Boolean = _hostState.value.remapActive
+
+    fun hostReport(): HostReport? = _hostState.value.report(clock())
 
     // --- Mutators ---
 
@@ -143,8 +156,11 @@ object OverlayStateStore {
         }
     }
 
-    fun getActiveFixedNotifications(): List<FixedNotification> =
-        _fixedNotifications.value.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
+    fun getActiveFixedNotifications(): List<FixedNotification> = active(_fixedNotifications.value)
+
+    /** The badges GET /fixed_notifications and GET /events report: unexpired, visible, non-empty. */
+    fun active(notifications: List<FixedNotification>): List<FixedNotification> =
+        notifications.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
 
     fun enqueueNotification(notification: ReceivedNotification) {
         if (notification.isEmpty()) return
@@ -214,6 +230,19 @@ object OverlayStateStore {
 
     fun setDeviceId(id: String) {
         _deviceId.value = id
+    }
+
+    fun setHostState(state: HostState) {
+        _hostState.value = state
+    }
+
+    fun applyHostRequest(request: HostRequest): HostReport? {
+        val now = clock()
+        return _hostState.updateAndGet { it.apply(request, now) }.report(now)
+    }
+
+    fun clearRemapActive() {
+        _hostState.update { it.copy(remapActive = false) }
     }
 
     fun setWebhookUrl(url: String?) {

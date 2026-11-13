@@ -12,6 +12,8 @@
 
     <!-- SetupActivity resolves these before launching to detect missing or stub settings screens -->
     <queries>
+        <!-- Home screen app that registers via POST /host; HostWatcher checks it is installed -->
+        <package android:name="us.bergnet.foyer" />
         <intent>
             <action android:name="android.settings.action.MANAGE_OVERLAY_PERMISSION" />
         </intent>

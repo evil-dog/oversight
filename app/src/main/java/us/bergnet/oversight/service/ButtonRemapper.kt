@@ -19,6 +19,11 @@ class ButtonRemapper(
     private val scheduler: Scheduler,
     private val longPressTimeoutMs: Long,
     private val actions: Actions,
+    /**
+     * True while another app (Foyer) does the remapping. New presses then pass through untouched, key
+     * capture included; a press already in progress still finishes here so its UP isn't orphaned.
+     */
+    private val isManagedExternally: () -> Boolean = { false },
 ) {
     fun interface Cancellable { fun cancel() }
     fun interface Scheduler { fun schedule(delayMs: Long, block: () -> Unit): Cancellable }
@@ -47,6 +52,8 @@ class ButtonRemapper(
     private fun onDown(keyCode: Int): Boolean {
         // A DOWN without an UP (e.g. focus loss) leaves a stale press; drop it
         pressed.remove(keyCode)?.timer?.cancel()
+
+        if (isManagedExternally()) return false
 
         takeCaptureListener()?.let { listener ->
             pressed[keyCode] = Press(null, null)

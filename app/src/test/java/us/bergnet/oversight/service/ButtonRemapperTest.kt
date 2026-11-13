@@ -34,6 +34,7 @@ class ButtonRemapperTest {
     private var mappings = emptyList<ButtonMapping>()
     private var active = true
     private var capture: ((Int) -> Unit)? = null
+    private var managedExternally = false
     private val executed = mutableListOf<ButtonMapping>()
     private val emulated = mutableListOf<Int>()
 
@@ -47,6 +48,7 @@ class ButtonRemapperTest {
             override fun execute(mapping: ButtonMapping) { executed += mapping }
             override fun emulateDefault(keyCode: Int) { emulated += keyCode }
         },
+        isManagedExternally = { managedExternally },
     )
 
     private fun down(key: Int, repeat: Int = 0) = remapper.onKey(key, isDown = true, repeatCount = repeat)
@@ -170,5 +172,44 @@ class ButtonRemapperTest {
         down(back)
         mappings = emptyList()
         assertTrue(up(back))
+    }
+
+    // --- Remapping managed by another app (Foyer) ---
+
+    @Test
+    fun managedExternallyPassesEverythingThrough() {
+        mappings = listOf(ButtonMapping(netflix, false, RemapAction.HOME), ButtonMapping(back, true, RemapAction.HOME))
+        managedExternally = true
+        assertFalse(down(netflix))
+        assertFalse(down(netflix, repeat = 1))
+        assertFalse(up(netflix))
+        assertFalse(down(back))
+        scheduler.advance(timeout)
+        assertFalse(up(back))
+        assertTrue(executed.isEmpty())
+        assertTrue(emulated.isEmpty())
+    }
+
+    @Test
+    fun managedExternallyLeavesCaptureAlone() {
+        var captured: Int? = null
+        capture = { captured = it }
+        managedExternally = true
+        assertFalse(down(netflix))
+        assertEquals(null, captured)
+    }
+
+    @Test
+    fun pressInProgressFinishesWhenManagementStarts() {
+        val long = ButtonMapping(back, true, RemapAction.HOME)
+        mappings = listOf(long)
+        assertTrue(down(back))
+        managedExternally = true
+        // The consumed DOWN's press completes here, so the app never gets an orphan UP
+        assertTrue(up(back))
+        assertEquals(listOf(back), emulated)
+        // The next press is Foyer's
+        assertFalse(down(back))
+        assertFalse(up(back))
     }
 }

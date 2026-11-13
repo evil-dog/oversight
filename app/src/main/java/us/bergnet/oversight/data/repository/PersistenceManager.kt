@@ -14,6 +14,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
@@ -45,6 +47,7 @@ class PersistenceManager(private val context: Context) {
         private val KEY_BUTTON_MAPPINGS = stringPreferencesKey("button_mappings")
         private val KEY_DEVICE_ID = stringPreferencesKey("device_id")
         private val KEY_WEBHOOK_URL = stringPreferencesKey("webhook_url")
+        private val KEY_HOST = stringPreferencesKey("host")
         private val KEY_ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         private val KEY_SEEN_FEATURE_INTROS = stringSetPreferencesKey("seen_feature_intros")
     }
@@ -99,6 +102,10 @@ class PersistenceManager(private val context: Context) {
 
         loadKey(prefs, KEY_BUTTON_MAPPINGS) { value ->
             OverlayStateStore.setButtonMappings(json.decodeFromString<List<ButtonMapping>>(value))
+        }
+
+        loadKey(prefs, KEY_HOST) { value ->
+            OverlayStateStore.setHostState(json.decodeFromString<HostState>(value))
         }
 
         loadKey(prefs, KEY_WEBHOOK_URL) { value ->
@@ -231,6 +238,17 @@ class PersistenceManager(private val context: Context) {
                 .debounce(500)
                 .collectLatest { url ->
                     if (url != null) save(KEY_WEBHOOK_URL, url) else remove(KEY_WEBHOOK_URL)
+                }
+        }
+
+        scope.launch {
+            // The lease deadline isn't persisted, so renewals every 15s don't each cause a write
+            OverlayStateStore.hostState
+                .map { it.copy(homeVisibleUntil = 0L) }
+                .distinctUntilChanged()
+                .debounce(500)
+                .collectLatest { host ->
+                    save(KEY_HOST, json.encodeToString(host))
                 }
         }
 

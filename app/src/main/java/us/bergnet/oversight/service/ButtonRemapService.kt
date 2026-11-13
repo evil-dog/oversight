@@ -56,6 +56,7 @@ class ButtonRemapService : AccessibilityService() {
                 override fun execute(mapping: ButtonMapping) = perform(mapping)
                 override fun emulateDefault(keyCode: Int) = emulateKey(keyCode)
             },
+            isManagedExternally = { OverlayStateStore.isRemapManagedExternally() },
         )
     }
 

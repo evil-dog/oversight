@@ -33,6 +33,7 @@ private fun Context.currentStatus(): StatusValues {
         },
         isScreenOn = OverlayStateStore.isScreenOn.value,
         webhookConfigured = OverlayStateStore.webhookUrl.value != null,
+        host = OverlayStateStore.hostReport(),
     )
 }
 

@@ -96,6 +96,7 @@ Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Uns
 - `version` — app `versionCode` (`major*10000 + minor*100 + patch`, e.g. `302` for v0.3.2)
 - `isScreenOn` — whether the TV screen is on
 - `permissionState` — `GRANTED` when the overlay permission is granted, otherwise `DENIED_SETTING_AVAILABLE`
+- `host` — the home screen app registered via `POST /host`: `{"package", "homeVisible", "remapActive"}`, or `null`
 - `webhookConfigured` — whether an address-announcement webhook is set (see `POST /set/webhook`)
 - `batteryOptimizationState` — `ENABLED` when the app is exempt from battery optimization; `SKIPPED` when it isn't but the device can grant it (setup screen); `BLOCKED` when the device has no way to grant it (e.g. Google TV — only via `adb shell dumpsys deviceidle whitelist +us.bergnet.oversight`)
 
@@ -134,6 +135,20 @@ Returns `deviceId` plus `overlay`, `settings`, `notifications` and `status`. Uns
   "displayDebug": false
 }
 ```
+
+#### `POST /host`
+**Only accepted from the device itself** (loopback); anything else gets `403`. Lets a home screen app (Foyer) take over parts of the overlay:
+```json
+{ "package": "us.bergnet.foyer", "homeVisible": true, "remapActive": true, "leaseSeconds": 30 }
+```
+- `package` — required; only `us.bergnet.foyer` is accepted, and it must be installed (`403` otherwise)
+- `homeVisible` — while true, OverSight hides its clock and fixed badges (the host draws them). It is a **lease**: it lapses `leaseSeconds` after the last request unless renewed, so a crashed host can't leave them hidden. `false` ends it at once. Not persisted.
+- `remapActive` — while true, OverSight's button remapping passes every key through and its settings show "Managed by Foyer"; saved mappings are kept. Persisted. Cleared when the host is uninstalled or its accessibility service is turned off (an update doesn't clear it), and only accepted while that service is on.
+- `leaseSeconds` — `5`–`300`, default `30`
+- Omitted fields keep their current value. Responds with the resulting `{package, homeVisible, remapActive}`.
+
+#### `GET /events`
+Server-Sent Events (`text/event-stream`). Event `fixed_notifications` carries the same array as `GET /fixed_notifications`: once on connect (a full snapshot), then on every change, including a badge expiring. Keep-alive comments every 15 s.
 
 #### `POST /set/webhook`
 ```json

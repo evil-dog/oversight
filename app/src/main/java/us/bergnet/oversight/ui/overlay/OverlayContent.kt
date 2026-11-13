@@ -31,10 +31,23 @@ fun OverlayContent() {
     val fixedNotifications by OverlayStateStore.fixedNotifications.collectAsState()
     val currentNotification by OverlayStateStore.currentNotification.collectAsState()
     val layoutList by OverlayStateStore.layoutList.collectAsState()
+    val hostState by OverlayStateStore.hostState.collectAsState()
+
+    // While a host's home screen (Foyer) is showing, it draws the clock and badges itself. The lease is
+    // a deadline, so wake when it runs out (host crashed or stopped renewing) to bring them back.
+    val homeVisible by produceState(hostState.isHomeVisible(OverlayStateStore.clock()), hostState) {
+        value = hostState.isHomeVisible(OverlayStateStore.clock())
+        val remaining = hostState.homeVisibleUntil - OverlayStateStore.clock()
+        if (value && remaining > 0) {
+            delay(remaining)
+            value = false
+        }
+    }
 
     val settings = infoValues.effective()
     val overlayVisibility = settings.overlayVisibility
-    val clockVisibility = settings.clockVisibility
+    // Runtime override only: the saved settings stay as they are
+    val clockVisibility = if (homeVisible) 0 else settings.clockVisibility
     val displayNotifications = settings.displayNotifications
     val hotCorner = settings.hotCorner
     val notificationDuration = settings.notificationDuration
@@ -52,7 +65,7 @@ fun OverlayContent() {
 
     val fixedNotificationsAlpha = settings.fixedNotificationsVisibility / 100f
 
-    val activeFixed = if (settings.displayFixedNotifications) {
+    val activeFixed = if (settings.displayFixedNotifications && !homeVisible) {
         fixedNotifications.filter { !it.isExpired() && it.isVisible() && !it.isEmpty() }
     } else {
         emptyList()

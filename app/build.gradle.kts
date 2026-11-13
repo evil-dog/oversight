@@ -88,6 +88,7 @@ dependencies {
         exclude(group = "io.netty", module = "netty-codec-native-quic")
     }
     implementation("io.ktor:ktor-server-content-negotiation:3.6.0")
+    implementation("io.ktor:ktor-server-sse:3.6.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json:3.6.0")
 
     // Serialization

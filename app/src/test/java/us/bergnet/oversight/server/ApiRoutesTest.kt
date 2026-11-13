@@ -33,7 +33,17 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import us.bergnet.oversight.data.model.FixedNotification
+import us.bergnet.oversight.server.routes.fixedNotificationEvents
+import kotlinx.serialization.json.jsonArray
+import us.bergnet.oversight.data.model.HostState
 import us.bergnet.oversight.data.model.InfoValues
+import us.bergnet.oversight.server.routes.isLoopback
+import us.bergnet.oversight.service.HostWatcher
+import us.bergnet.oversight.util.Packages
 import us.bergnet.oversight.data.model.NotificationLayoutList
 import us.bergnet.oversight.data.store.OverlayStateStore
 import us.bergnet.oversight.util.SettingsScreens
@@ -54,10 +64,18 @@ class ApiRoutesTest {
         OverlayStateStore.setDeviceId("test-device")
         OverlayStateStore.setScreenOn(true)
         OverlayStateStore.setWebhookUrl(null)
+        OverlayStateStore.setHostState(HostState())
+        OverlayStateStore.clock = { now }
     }
 
-    private fun api(block: suspend ApplicationTestBuilder.() -> Unit) = testApplication {
-        application { apiModule(context) }
+    private var now = 1_000_000L
+
+    private fun api(
+        trustedHostCaller: Boolean = true,
+        block: suspend ApplicationTestBuilder.() -> Unit
+    ) = testApplication {
+        // The test client is always local, so the loopback check is replaced to cover both cases
+        application { apiModule(context, isTrustedHostCaller = { trustedHostCaller }) }
         block()
     }
 
@@ -231,5 +249,154 @@ class ApiRoutesTest {
             assertEquals(bad, HttpStatusCode.BadRequest, response.status)
         }
         assertEquals(url, OverlayStateStore.webhookUrl.value)
+    }
+
+    // --- Host (Foyer) ---
+
+    private fun installFoyer(accessibilityEnabled: Boolean = true) {
+        shadowOf(context.packageManager).installPackage(
+            android.content.pm.PackageInfo().apply { packageName = HostState.FOYER_PACKAGE }
+        )
+        Settings.Secure.putString(
+            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+            if (accessibilityEnabled) "com.other/.Service:us.bergnet.foyer/.a11y.FoyerAccessibilityService" else ""
+        )
+    }
+
+    private suspend fun ApplicationTestBuilder.postHost(body: String) =
+        client.post("/host") { setBody(body) }
+
+    private suspend fun ApplicationTestBuilder.reportedHost(): JsonObject? =
+        client.get("/info").json().result.getValue("status").jsonObject["host"]
+            ?.takeIf { it != JsonNull }?.jsonObject
+
+    @Test
+    fun loopbackCheck() {
+        listOf("127.0.0.1", "::1", "::ffff:127.0.0.1").forEach { assertTrue(it, isLoopback(it)) }
+        listOf("192.168.24.10", "fe80::1", "not an address").forEach { assertFalse(it, isLoopback(it)) }
+    }
+
+    @Test
+    fun hostRejectsCallersOffDevice() = api(trustedHostCaller = false) {
+        installFoyer()
+        val response = postHost("""{"package":"us.bergnet.foyer","homeVisible":true}""")
+        assertEquals(HttpStatusCode.Forbidden, response.status)
+        assertNull(OverlayStateStore.hostState.value.packageName)
+    }
+
+    @Test
+    fun hostRejectsUnknownOrMissingPackages() = api {
+        assertEquals(HttpStatusCode.Forbidden, postHost("""{"package":"com.evil.app","homeVisible":true}""").status)
+        // Allowlisted but not installed
+        assertEquals(HttpStatusCode.Forbidden, postHost("""{"package":"us.bergnet.foyer","homeVisible":true}""").status)
+        assertEquals(HttpStatusCode.BadRequest, postHost("""{"homeVisible":true}""").status)
+        assertNull(reportedHost())
+    }
+
+    @Test
+    fun homeVisibleLeaseExpires() = api {
+        installFoyer()
+        val response = postHost("""{"package":"us.bergnet.foyer","homeVisible":true,"leaseSeconds":30}""")
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertTrue(response.json().result.getValue("homeVisible").jsonPrimitive.boolean)
+        assertTrue(reportedHost()!!.getValue("homeVisible").jsonPrimitive.boolean)
+
+        now += 29_000
+        assertTrue(reportedHost()!!.getValue("homeVisible").jsonPrimitive.boolean)
+        now += 2_000
+        assertFalse(reportedHost()!!.getValue("homeVisible").jsonPrimitive.boolean)
+
+        // Renewing restarts the lease; false ends it at once
+        postHost("""{"package":"us.bergnet.foyer","homeVisible":true}""")
+        assertTrue(reportedHost()!!.getValue("homeVisible").jsonPrimitive.boolean)
+        postHost("""{"package":"us.bergnet.foyer","homeVisible":false}""")
+        assertFalse(reportedHost()!!.getValue("homeVisible").jsonPrimitive.boolean)
+    }
+
+    @Test
+    fun leaseSecondsIsClamped() = api {
+        installFoyer()
+        postHost("""{"package":"us.bergnet.foyer","homeVisible":true,"leaseSeconds":1}""")
+        assertEquals(now + 5_000, OverlayStateStore.hostState.value.homeVisibleUntil)
+        postHost("""{"package":"us.bergnet.foyer","homeVisible":true,"leaseSeconds":100000}""")
+        assertEquals(now + 300_000, OverlayStateStore.hostState.value.homeVisibleUntil)
+    }
+
+    @Test
+    fun omittedHostFieldsKeepTheirValue() = api {
+        installFoyer()
+        postHost("""{"package":"us.bergnet.foyer","remapActive":true}""")
+        postHost("""{"package":"us.bergnet.foyer","homeVisible":true}""")
+        val host = reportedHost()!!
+        assertTrue(host.getValue("remapActive").jsonPrimitive.boolean)
+        assertTrue(host.getValue("homeVisible").jsonPrimitive.boolean)
+        assertEquals("us.bergnet.foyer", host.getValue("package").jsonPrimitive.content)
+        assertTrue(OverlayStateStore.isRemapManagedExternally())
+    }
+
+    @Test
+    fun remapActiveNeedsTheHostsAccessibilityService() = api {
+        installFoyer(accessibilityEnabled = false)
+        val response = postHost("""{"package":"us.bergnet.foyer","remapActive":true}""")
+        assertEquals(HttpStatusCode.OK, response.status)
+        assertFalse(response.json().result.getValue("remapActive").jsonPrimitive.boolean)
+        assertFalse(OverlayStateStore.isRemapManagedExternally())
+    }
+
+    @Test
+    fun hostWatcherReconcile() {
+        val foyer = HostState(packageName = HostState.FOYER_PACKAGE, remapActive = true, homeVisibleUntil = 5L)
+        assertEquals(HostState(), HostWatcher.reconcile(foyer, installed = false, accessibilityEnabled = true))
+        assertEquals(foyer.copy(remapActive = false), HostWatcher.reconcile(foyer, installed = true, accessibilityEnabled = false))
+        assertEquals(foyer, HostWatcher.reconcile(foyer, installed = true, accessibilityEnabled = true))
+        assertEquals(HostState(), HostWatcher.reconcile(HostState(), installed = false, accessibilityEnabled = false))
+    }
+
+    @Test
+    fun enabledAccessibilityPackagesParsesShortAndLongForms() {
+        assertEquals(
+            setOf("us.bergnet.foyer", "us.bergnet.oversight"),
+            Packages.enabledAccessibilityPackages(
+                "us.bergnet.foyer/.a11y.FoyerAccessibilityService:" +
+                    "us.bergnet.oversight/us.bergnet.oversight.service.ButtonRemapService"
+            )
+        )
+        assertTrue(Packages.enabledAccessibilityPackages(null).isEmpty())
+        assertTrue(Packages.enabledAccessibilityPackages("").isEmpty())
+    }
+
+    @Test
+    fun hostPersistsWithoutTheLease() {
+        val json = HttpServer.json
+        val stored = json.encodeToString(
+            HostState.serializer(),
+            HostState(packageName = HostState.FOYER_PACKAGE, remapActive = true, homeVisibleUntil = 99L)
+        )
+        assertFalse(stored, "homeVisibleUntil" in stored)
+        assertEquals(
+            HostState(packageName = HostState.FOYER_PACKAGE, remapActive = true),
+            json.decodeFromString(HostState.serializer(), stored)
+        )
+    }
+
+    // --- Events (SSE) ---
+
+    @Test
+    fun fixedNotificationEventsSnapshotThenChanges() = runBlocking {
+        OverlayStateStore.upsertFixedNotification(FixedNotification(id = "one", text = "first"))
+        val events = mutableListOf<String>()
+        withTimeout(5_000) {
+            fixedNotificationEvents().take(3).collect { data ->
+                events += data
+                when (events.size) {
+                    1 -> OverlayStateStore.upsertFixedNotification(FixedNotification(id = "two", text = "second"))
+                    2 -> OverlayStateStore.removeFixedNotification("one")
+                }
+            }
+        }
+        val ids = events.map { e ->
+            HttpServer.json.parseToJsonElement(e).jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content }
+        }
+        assertEquals(listOf(listOf("one"), listOf("one", "two"), listOf("two")), ids)
     }
 }

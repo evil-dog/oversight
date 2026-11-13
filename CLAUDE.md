@@ -58,6 +58,13 @@ docker run --rm --network host \
 ### mDNS
 `ZeroconfAdvertiser` uses Android `NsdManager`. A fresh `RegistrationListener` is created per registration to avoid NsdManager race conditions. Re-registers automatically when `deviceName` or `port` changes.
 
+### Host (Foyer) Cooperation
+`POST /host` (`HostRoutes`) is loopback-only and allowlists `HostState.ALLOWED_PACKAGES`; the package is self-reported since a TCP peer can't be mapped to an app, so the allowlist plus an installed check is the guard. `HostState` lives in `OverlayStateStore.hostState`:
+- `homeVisibleUntil` is a lease **deadline**, not a flag: `@Transient` (never persisted, and the auto-save ignores it so 15 s renewals don't write), checked against `OverlayStateStore.clock` (tests replace it). `OverlayContent` uses `produceState` that sleeps until the deadline so the clock and badges return exactly when a lease lapses. It's a runtime override; saved settings are untouched.
+- `remapActive` persists. `HostWatcher` (started by `OverlayService`) clears the registration when the host is uninstalled (ignoring `EXTRA_REPLACING`, so updates don't clear it) and clears `remapActive` when the host's accessibility service leaves `ENABLED_ACCESSIBILITY_SERVICES` (`ContentObserver`, matched by package); `/host` applies the same rule. Seeing Foyer needs its `<queries>` entry.
+- `ButtonRemapper.isManagedExternally` is checked at the start of a **new** press only, before capture: a press whose DOWN was already consumed finishes so the app never gets an orphan UP.
+- `GET /events` (SSE) streams `fixedNotificationEvents()`; testApplication's client doesn't receive SSE, so tests exercise the flow directly.
+
 ### Address Announcements
 `AddressAnnouncer` posts `{deviceId, host, port, deviceName}` to the Home Assistant webhook stored by `POST /set/webhook` (persisted as `webhook_url`, reported as `status.webhookConfigured`). It watches the default network via `registerDefaultNetworkCallback` and announces on start and when the IPv4 address, port or webhook changes (debounced 2 s, `collectLatest` cancels a stale retry loop). Every failure except a `400` rejection is retried — Home Assistant returns 404 while restarting and 503 while it can't yet reach the new address.
 

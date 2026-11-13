@@ -72,6 +72,7 @@ import us.bergnet.oversight.data.model.ButtonMapping
 import us.bergnet.oversight.data.model.InfoValues
 import us.bergnet.oversight.data.model.NotificationValues
 import us.bergnet.oversight.data.model.OverlayValues
+import us.bergnet.oversight.data.model.HostState
 import us.bergnet.oversight.data.model.RemapAction
 import us.bergnet.oversight.data.model.SettingsValues
 import us.bergnet.oversight.data.model.enums.HotCorner
@@ -187,6 +188,9 @@ internal fun SetupScreen(
     val deviceId by OverlayStateStore.deviceId.collectAsState()
     val buttonMappings by OverlayStateStore.buttonMappings.collectAsState()
     val remapConnected by OverlayStateStore.isRemapServiceConnected.collectAsState()
+    val hostState by OverlayStateStore.hostState.collectAsState()
+    // App doing the remapping instead of OverSight (Foyer), or null
+    val remapManagedBy = hostState.packageName?.takeIf { hostState.remapActive }?.let(::hostAppLabel)
 
     var selectedItem by remember { mutableStateOf(initialItem) }
     var dialog by remember { mutableStateOf<DialogState?>(null) }
@@ -273,6 +277,7 @@ internal fun SetupScreen(
     }
 
     fun startMappingCapture() {
+        if (remapManagedBy != null) return
         leftActive = false
         dialog = DialogState.Capture
     }
@@ -287,6 +292,7 @@ internal fun SetupScreen(
     }
 
     fun editMapping(mapping: ButtonMapping) {
+        if (remapManagedBy != null) return
         leftActive = false
         mappingDraft = mapping
         dialog = DialogState.Selector(SId.MAP_EDIT, mapping.title(), listOf("Change action", "Delete"), -1)
@@ -404,7 +410,7 @@ internal fun SetupScreen(
                     deviceId = deviceId, ip = ip,
                     hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
                     canRequestBatteryExemption = canRequestBatteryExemption, hasRemapPermission = hasRemapPermission,
-                    buttonMappings = buttonMappings, remapConnected = remapConnected,
+                    buttonMappings = buttonMappings, remapConnected = remapConnected, remapManagedBy = remapManagedBy,
                     appVersion = appVersion, rightFocus = rightFocus, enabled = leftActive,
                     onNavigateLeft = ::focusLeftMenu,
                     onToggle = { id ->
@@ -603,7 +609,7 @@ private fun RightPanel(
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
     hasRemapPermission: Boolean,
-    buttonMappings: List<ButtonMapping>, remapConnected: Boolean,
+    buttonMappings: List<ButtonMapping>, remapConnected: Boolean, remapManagedBy: String?,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     onNavigateLeft: () -> Unit,
     onToggle: (SId) -> Unit, onEdit: (SId) -> Unit,
@@ -628,7 +634,7 @@ private fun RightPanel(
             infoValues = infoValues, isRunning = isRunning, mdnsRegistered = mdnsRegistered, deviceId = deviceId, ip = ip,
             hasOverlayPermission = hasOverlayPermission, hasBatteryExemption = hasBatteryExemption,
             canRequestBatteryExemption = canRequestBatteryExemption,
-            hasRemapPermission = hasRemapPermission, remapConnected = remapConnected,
+            hasRemapPermission = hasRemapPermission, remapConnected = remapConnected, remapManagedBy = remapManagedBy,
             appVersion = appVersion, rightFocus = rightFocus, enabled = enabled, backToLeft = backToLeft,
             onRequestOverlayPermission = onRequestOverlayPermission,
             onRequestBatteryExemption = onRequestBatteryExemption
@@ -663,12 +669,12 @@ private fun RightPanel(
             onStartService = onStartService, onStopService = onStopService, onRestartService = onRestartService
         )
         SId.REMAP_SERVICE -> RemapServiceDetail(
-            connected = remapConnected,
+            connected = remapConnected, managedBy = remapManagedBy,
             rightFocus = rightFocus, backToLeft = backToLeft,
             onOpenSettings = onOpenAccessibilitySettings
         )
         SId.BUTTON_MAPPINGS -> ButtonMappingsDetail(
-            mappings = buttonMappings, serviceConnected = remapConnected,
+            mappings = buttonMappings, serviceConnected = remapConnected, managedBy = remapManagedBy,
             rightFocus = rightFocus, backToLeft = backToLeft,
             onAdd = onAddMapping, onEdit = onEditMapping
         )
@@ -702,7 +708,7 @@ private fun AboutDetail(
     infoValues: InfoValues,
     isRunning: Boolean, mdnsRegistered: Boolean, deviceId: String, ip: String,
     hasOverlayPermission: Boolean, hasBatteryExemption: Boolean, canRequestBatteryExemption: Boolean,
-    hasRemapPermission: Boolean, remapConnected: Boolean,
+    hasRemapPermission: Boolean, remapConnected: Boolean, remapManagedBy: String?,
     appVersion: String, rightFocus: FocusRequester, enabled: Boolean,
     backToLeft: Modifier,
     onRequestOverlayPermission: () -> Unit, onRequestBatteryExemption: () -> Unit
@@ -740,6 +746,7 @@ private fun AboutDetail(
             InfoLine("Remap Permission", if (hasRemapPermission) "Granted" else "Not Granted",
                 if (hasRemapPermission) Green else TextMuted)
             when {
+                remapManagedBy != null -> InfoLine("Remap Service", "Managed by $remapManagedBy", Accent)
                 remapConnected -> InfoLine("Remap Service", "Running", Green)
                 hasRemapPermission -> InfoLine("Remap Service", "Not Running", Red)
                 else -> InfoLine("Remap Service", "Off", TextMuted)
@@ -951,7 +958,7 @@ private fun ActionDetail(
 
 @Composable
 private fun RemapServiceDetail(
-    connected: Boolean,
+    connected: Boolean, managedBy: String?,
     rightFocus: FocusRequester, backToLeft: Modifier,
     onOpenSettings: () -> Unit
 ) {
@@ -967,6 +974,15 @@ private fun RemapServiceDetail(
             if (connected) "Service is enabled" else "Service is disabled",
             color = if (connected) Green else Red, fontSize = 16.sp
         )
+        if (managedBy != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("Managed by $managedBy", color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "$managedBy does the button remapping, so OverSight passes every button through.",
+                color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(0.8f)
+            )
+        }
         Spacer(modifier = Modifier.height(24.dp))
         Button(
             onClick = onOpenSettings,
@@ -978,7 +994,7 @@ private fun RemapServiceDetail(
                 .let { if (focused) it.border(2.dp, TextPrimary, RoundedCornerShape(10.dp)) else it }
                 .height(48.dp)
         ) { Text("Accessibility Settings", fontSize = 15.sp) }
-        if (!connected) {
+        if (!connected && managedBy == null) {
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 "Turn on \"OverSight Button Remapping\". If the switch is greyed out (Android 13+), first choose " +
@@ -992,10 +1008,14 @@ private fun RemapServiceDetail(
 
 @Composable
 private fun ButtonMappingsDetail(
-    mappings: List<ButtonMapping>, serviceConnected: Boolean,
+    mappings: List<ButtonMapping>, serviceConnected: Boolean, managedBy: String?,
     rightFocus: FocusRequester, backToLeft: Modifier,
     onAdd: () -> Unit, onEdit: (ButtonMapping) -> Unit
 ) {
+    if (managedBy != null) {
+        ManagedMappingsDetail(mappings, managedBy, rightFocus, backToLeft)
+        return
+    }
     val sorted = mappings.sortedWith(compareBy({ ButtonMapping.keyName(it.keyCode) }, { it.longPress }))
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -1026,6 +1046,51 @@ private fun ButtonMappingsDetail(
         }
     }
 }
+
+/**
+ * Mappings while another app does the remapping: listed read-only (kept for when it's removed),
+ * nothing to add or edit. A focusable row still holds [rightFocus] so D-pad navigation works.
+ */
+@Composable
+private fun ManagedMappingsDetail(
+    mappings: List<ButtonMapping>, managedBy: String,
+    rightFocus: FocusRequester, backToLeft: Modifier
+) {
+    val sorted = mappings.sortedWith(compareBy({ ButtonMapping.keyName(it.keyCode) }, { it.longPress }))
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+    ) {
+        DetailHeader(settingMeta[SId.BUTTON_MAPPINGS]!!)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Managed by $managedBy", color = Accent, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            "Set up button mappings in $managedBy. OverSight's mappings below are paused and come back if $managedBy is removed.",
+            color = TextMuted, fontSize = 12.sp, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(0.8f)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        if (sorted.isEmpty()) {
+            MappingRow(
+                title = "No saved mappings", subtitle = null, icon = "information-outline",
+                focusRequester = rightFocus, backToLeft = backToLeft, onClick = {}
+            )
+        }
+        sorted.forEachIndexed { index, mapping ->
+            if (index > 0) Spacer(modifier = Modifier.height(8.dp))
+            MappingRow(
+                title = "${mapping.title()}  \u2192  ${mapping.actionLabel()}",
+                subtitle = null,
+                icon = if (mapping.longPress) "gesture-tap-hold" else "gesture-tap",
+                focusRequester = if (index == 0) rightFocus else null, backToLeft = backToLeft, onClick = {}
+            )
+        }
+    }
+}
+
+/** Display name for a host app's package. */
+private fun hostAppLabel(packageName: String): String =
+    if (packageName == HostState.FOYER_PACKAGE) "Foyer" else packageName
 
 @Composable
 private fun MappingRow(

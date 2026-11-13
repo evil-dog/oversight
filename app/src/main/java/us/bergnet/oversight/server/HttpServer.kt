@@ -8,6 +8,7 @@ import io.ktor.server.engine.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.routing.*
+import io.ktor.server.sse.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import us.bergnet.oversight.server.routes.*
@@ -66,16 +67,25 @@ class HttpServer(
     }
 }
 
-/** Everything except the service-control routes, so tests can run the API without an [OverlayService]. */
-fun Application.apiModule(context: Context) {
+/**
+ * Everything except the service-control routes, so tests can run the API without an [OverlayService].
+ * [isTrustedHostCaller] decides who may call POST /host; tests replace it since their client is always local.
+ */
+fun Application.apiModule(
+    context: Context,
+    isTrustedHostCaller: (ApplicationCall) -> Boolean = loopbackCaller,
+) {
     install(ContentNegotiation) {
         json(HttpServer.json)
     }
+    install(SSE)
     routing {
         notifyRoutes()
         settingsRoutes(context)
         overlayRoutes()
         layoutRoutes()
         webhookRoutes()
+        hostRoutes(context, isTrustedHostCaller)
+        eventRoutes()
     }
 }
